@@ -536,17 +536,19 @@ function NotificationBell({ currentUser }) {
 
   return (
     <div className="relative">
-      <button onClick={abrir} className="relative p-2 rounded-lg" style={{ color: C.textDim }} title="Notificações">
+      <button onClick={abrir} className="relative rounded-full flex items-center justify-center"
+        style={{ width: 40, height: 40, background: C.surface, border: `1px solid ${C.border}`, color: C.textDim, boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}
+        title="Notificações">
         <Bell size={18} />
         {naoLidas > 0 && (
-          <span className="absolute top-0 right-0 rounded-full text-[9px] font-bold flex items-center justify-center"
-            style={{ width: 15, height: 15, background: C.red, color: "#fff" }}>
+          <span className="absolute -top-1 -right-1 rounded-full text-[9px] font-bold flex items-center justify-center"
+            style={{ width: 16, height: 16, background: C.red, color: "#fff", border: `2px solid ${C.bg}` }}>
             {naoLidas > 9 ? "9+" : naoLidas}
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute z-20 rounded-xl overflow-hidden" style={{ top: "100%", right: 0, marginTop: 6, width: 280, background: C.surface, border: `1px solid ${C.border}`, maxHeight: 320, overflowY: "auto" }}>
+        <div className="absolute z-20 rounded-xl overflow-hidden" style={{ top: "100%", right: 0, marginTop: 8, width: 300, background: C.surface, border: `1px solid ${C.border}`, maxHeight: 340, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
           <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: C.textFaint, borderBottom: `1px solid ${C.borderSoft}` }}>
             Notificações
           </div>
@@ -584,12 +586,9 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
-      <div className="pl-8 pr-5 pt-7 pb-6 flex items-start justify-between" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-        <div>
-          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
-          <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
-        </div>
-        <NotificationBell currentUser={user} />
+      <div className="pl-8 pr-5 pt-7 pb-6" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
+        <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
       </div>
 
       <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1">
@@ -2371,7 +2370,10 @@ export default function DieselFilmsOS() {
       <style>{FONTS}</style>
       <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} equipe={equipe} setEquipe={setEquipe} />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-8 py-8">
+        <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
+          <NotificationBell currentUser={currentUser} />
+        </div>
+        <div className="max-w-5xl mx-auto px-8 pt-1 pb-8">
           {modules}
         </div>
       </div>
