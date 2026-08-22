@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getOrcamento } from "./lib/orcamentosApi.js";
+import { calcularInvestimentoTotal } from "./lib/precificacao.js";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
 
@@ -80,7 +81,8 @@ export default function OrcamentoPublico({ id }) {
   }
 
   const orc = state.data;
-  const total = (orc.itens || []).reduce((s, it) => s + (Number(it.valor) || 0) * (Number(it.quantidade) || 1), 0);
+  const precos = { taxaCartao: orc.taxaCartao, impostoSimples: orc.impostoSimples };
+  const total = calcularInvestimentoTotal(orc.itens, precos);
 
   return (
     <Shell>
@@ -101,18 +103,16 @@ export default function OrcamentoPublico({ id }) {
           {(orc.itens || []).map((it) => (
             <div key={it.id} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderBottom: `1px solid ${T.panelLine}` }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 500 }}>
-                  {it.descricao}{Number(it.quantidade) > 1 ? ` × ${it.quantidade}` : ""}
-                </div>
+                <div style={{ fontSize: 15, fontWeight: 500 }}>{it.descricao}</div>
                 {it.detalhes && <div style={{ fontSize: 13, color: T.textDim, marginTop: 4, maxWidth: 440 }}>{it.detalhes}</div>}
               </div>
               <div style={{ fontSize: 15, whiteSpace: "nowrap", color: T.gold3 }}>
-                {brl((Number(it.valor) || 0) * (Number(it.quantidade) || 1))}
+                {brl(calcularInvestimentoTotal([it], precos))}
               </div>
             </div>
           ))}
           <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 18 }}>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20 }}>Total</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20 }}>Investimento total</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: T.gold1 }}>{brl(total)}</div>
           </div>
         </div>

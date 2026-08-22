@@ -4,11 +4,15 @@ import {
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
-  Pencil, Heart, MessageCircle, Send, Bookmark, Play
+  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
 import { createOrcamento, updateOrcamento, deleteOrcamento } from "./lib/orcamentosApi.js";
+import {
+  seedPrecificacao, calcularValorHoraFinal, calcularItemTotal,
+  calcularTotalLiquido, calcularInvestimentoTotal,
+} from "./lib/precificacao.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -1092,10 +1096,15 @@ function ItemRow({ item, onChange, onRemove }) {
         onChange={(e) => onChange({ ...item, descricao: e.target.value })} />
       <input style={{ ...inputStyle, flex: "2 1 160px" }} placeholder="Detalhes (opcional)" value={item.detalhes}
         onChange={(e) => onChange({ ...item, detalhes: e.target.value })} />
-      <input type="number" style={{ ...inputStyle, width: 100 }} placeholder="Valor" value={item.valor}
-        onChange={(e) => onChange({ ...item, valor: e.target.value })} />
-      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Qtd" value={item.quantidade}
-        onChange={(e) => onChange({ ...item, quantidade: e.target.value })} />
+      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Horas" title="Horas" value={item.horas}
+        onChange={(e) => onChange({ ...item, horas: e.target.value })} />
+      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Diárias" title="Diárias" value={item.diarias}
+        onChange={(e) => onChange({ ...item, diarias: e.target.value })} />
+      <input type="number" style={{ ...inputStyle, width: 100 }} placeholder="Valor/hora" title="Valor da hora" value={item.valorIndividual}
+        onChange={(e) => onChange({ ...item, valorIndividual: e.target.value })} />
+      <div className="flex items-center px-2 text-sm whitespace-nowrap" style={{ color: C.gold, fontFamily: "Inter", minWidth: 90 }}>
+        {brl(calcularItemTotal(item))}
+      </div>
       <IconBtn onClick={onRemove} title="Remover"><Trash2 size={14} /></IconBtn>
     </div>
   );
@@ -1150,7 +1159,7 @@ function VideoRow({ video, onChange, onRemove }) {
 
 const ORCAMENTO_STATUSES = ["Rascunho", "Enviado", "Visualizado", "Aprovado", "Recusado"];
 
-function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
+function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setPrecificacao }) {
   const [view, setView] = useState("list");
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("Todos");
@@ -1160,9 +1169,10 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
   const [savedLink, setSavedLink] = useState("");
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  const itemTotal = (it) => (Number(it.valor) || 0) * (Number(it.quantidade) || 1);
-  const orcTotal = (o) => (o.itens || []).reduce((s, it) => s + itemTotal(it), 0);
-  const totalForm = form.itens.reduce((s, it) => s + itemTotal(it), 0);
+  const valorHoraFinal = useMemo(() => calcularValorHoraFinal(precificacao), [precificacao]);
+  const orcTotal = (o) => calcularInvestimentoTotal(o.itens, { taxaCartao: o.taxaCartao, impostoSimples: o.impostoSimples });
+  const totalLiquidoForm = calcularTotalLiquido(form.itens);
+  const investimentoTotalForm = calcularInvestimentoTotal(form.itens, { taxaCartao: form.taxaCartao, impostoSimples: form.impostoSimples });
 
   const counts = { Todos: orcamentos.length };
   ORCAMENTO_STATUSES.forEach((s) => counts[s] = orcamentos.filter((o) => o.status === s).length);
@@ -1174,7 +1184,7 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
   const taxaAprovacao = (aprovados + recusados) > 0 ? Math.round((aprovados / (aprovados + recusados)) * 100) : 0;
 
   const startNew = () => {
-    setForm(emptyOrcamentoForm());
+    setForm({ ...emptyOrcamentoForm(), taxaCartao: precificacao.taxaCartao, impostoSimples: precificacao.impostoSimples });
     setEditingId(null);
     setSavedLink("");
     setLinkWarning("");
@@ -1191,6 +1201,8 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
       videos: (orc.videos || []).map((v) => ({ ...v })),
       observacoes: orc.observacoes || "",
       status: orc.status || "Rascunho",
+      taxaCartao: orc.taxaCartao ?? precificacao.taxaCartao,
+      impostoSimples: orc.impostoSimples ?? precificacao.impostoSimples,
     });
     setEditingId(orc.id);
     setSavedLink(`${window.location.origin}/orcamento/${orc.id}`);
@@ -1210,7 +1222,10 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
 
   const addItem = (preset) => setForm({
     ...form,
-    itens: [...form.itens, { id: uid(), descricao: preset?.descricao || "", detalhes: preset?.detalhes || "", valor: preset?.valor || "", quantidade: 1 }],
+    itens: [...form.itens, {
+      id: uid(), descricao: preset?.descricao || "", detalhes: preset?.detalhes || "",
+      horas: 1, diarias: 1, valorIndividual: Math.round(valorHoraFinal) || "",
+    }],
   });
   const updateItem = (idx, patch) => {
     const itens = form.itens.slice(); itens[idx] = patch; setForm({ ...form, itens });
@@ -1230,7 +1245,12 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
 
     const payload = {
       ...form,
-      itens: form.itens.map((it) => ({ ...it, valor: Number(it.valor) || 0, quantidade: Number(it.quantidade) || 1 })),
+      itens: form.itens.map((it) => ({
+        ...it,
+        horas: Number(it.horas) || 1,
+        diarias: Number(it.diarias) || 1,
+        valorIndividual: Number(it.valorIndividual) || 0,
+      })),
       titulo: form.titulo || `Orçamento — ${form.cliente.nome}`,
     };
 
@@ -1310,9 +1330,12 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
           <input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder={`Orçamento — ${form.cliente.nome || "cliente"}`} />
         </Field>
 
-        <div className="mt-5 mb-2 flex items-center justify-between">
+        <div className="mt-5 mb-2 flex items-center justify-between flex-wrap gap-1">
           <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Itens do orçamento</div>
-          <div className="text-sm" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(totalForm)}</div>
+          <div className="text-right">
+            <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>custo interno: {brl(totalLiquidoForm)}</div>
+            <div className="text-sm font-semibold" style={{ color: C.gold, fontFamily: "Inter" }}>Total do cliente: {brl(investimentoTotalForm)}</div>
+          </div>
         </div>
         <div className="mb-3">
           <button type="button" onClick={() => setCatalogOpen(!catalogOpen)}
@@ -1360,11 +1383,19 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
           <textarea style={{ ...inputStyle, minHeight: 80 }} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-3 gap-3 mb-5">
           <Field label="Status">
             <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {ORCAMENTO_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
+          </Field>
+          <Field label="Taxa de cartão (%)">
+            <input type="number" style={inputStyle} value={((form.taxaCartao ?? 0) * 100).toFixed(2)}
+              onChange={(e) => setForm({ ...form, taxaCartao: (Number(e.target.value) || 0) / 100 })} />
+          </Field>
+          <Field label="Imposto (%)">
+            <input type="number" style={inputStyle} value={((form.impostoSimples ?? 0) * 100).toFixed(2)}
+              onChange={(e) => setForm({ ...form, impostoSimples: (Number(e.target.value) || 0) / 100 })} />
           </Field>
         </div>
 
@@ -1389,10 +1420,107 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
     );
   }
 
+  if (view === "config") {
+    const updateList = (field, idx, patch) => {
+      const arr = precificacao[field].slice(); arr[idx] = patch;
+      setPrecificacao({ ...precificacao, [field]: arr });
+    };
+    const addToList = (field, empty) => setPrecificacao({ ...precificacao, [field]: [...precificacao[field], { id: uid(), ...empty }] });
+    const removeFromList = (field, idx) => setPrecificacao({ ...precificacao, [field]: precificacao[field].filter((_, i) => i !== idx) });
+
+    const CustoSection = ({ title, field }) => (
+      <div className="mb-5">
+        <div className="text-sm font-medium mb-2" style={{ color: C.text, fontFamily: "Inter" }}>{title}</div>
+        {precificacao[field].map((item, idx) => (
+          <div key={item.id} className="flex gap-2 items-center mb-2">
+            <input style={{ ...inputStyle, flex: 1 }} placeholder="Descrição" value={item.descricao}
+              onChange={(e) => updateList(field, idx, { ...item, descricao: e.target.value })} />
+            <input type="number" style={{ ...inputStyle, width: 130 }} placeholder="Valor mensal" value={item.valorMensal}
+              onChange={(e) => updateList(field, idx, { ...item, valorMensal: e.target.value })} />
+            <IconBtn onClick={() => removeFromList(field, idx)} title="Remover"><Trash2 size={14} /></IconBtn>
+          </div>
+        ))}
+        <button onClick={() => addToList(field, { descricao: "", valorMensal: "" })}
+          className="flex items-center gap-1.5 text-xs" style={{ color: C.gold, fontFamily: "Inter" }}>
+          <Plus size={14} />Adicionar
+        </button>
+      </div>
+    );
+
+    return (
+      <div>
+        <ModuleHeader title="Configurar calculadora" sub="Seus custos e meta de lucro definem o valor-hora usado nos orçamentos"
+          right={<button onClick={() => setView("list")} className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>‹ Voltar</button>} />
+
+        <CustoSection title="Custos pessoais (aluguel, mercado, etc.)" field="custosPessoais" />
+        <CustoSection title="Custos da empresa (aluguel do estúdio, internet, luz, etc.)" field="custosEmpresa" />
+        <div className="text-xs mb-4 -mt-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+          Seu salário necessário (soma dos custos pessoais acima) já entra automaticamente aqui.
+        </div>
+
+        <div className="mb-5">
+          <div className="text-sm font-medium mb-2" style={{ color: C.text, fontFamily: "Inter" }}>Equipamentos</div>
+          {precificacao.equipamentos.map((item, idx) => (
+            <div key={item.id} className="flex gap-2 items-center mb-2">
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Descrição" value={item.descricao}
+                onChange={(e) => updateList("equipamentos", idx, { ...item, descricao: e.target.value })} />
+              <input type="number" style={{ ...inputStyle, width: 120 }} placeholder="Valor total" value={item.valorTotal}
+                onChange={(e) => updateList("equipamentos", idx, { ...item, valorTotal: e.target.value })} />
+              <input type="number" style={{ ...inputStyle, width: 110 }} placeholder="Payback (meses)" value={item.paybackMeses}
+                onChange={(e) => updateList("equipamentos", idx, { ...item, paybackMeses: e.target.value })} />
+              <IconBtn onClick={() => removeFromList("equipamentos", idx)} title="Remover"><Trash2 size={14} /></IconBtn>
+            </div>
+          ))}
+          <button onClick={() => addToList("equipamentos", { descricao: "", valorTotal: "", paybackMeses: 12 })}
+            className="flex items-center gap-1.5 text-xs" style={{ color: C.gold, fontFamily: "Inter" }}>
+            <Plus size={14} />Adicionar
+          </button>
+        </div>
+
+        <CustoSection title="Assinaturas e programas" field="assinaturas" />
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <Field label="Meta de lucro mensal (R$)">
+            <input type="number" style={inputStyle} value={precificacao.metaLucroMensal}
+              onChange={(e) => setPrecificacao({ ...precificacao, metaLucroMensal: e.target.value })} />
+          </Field>
+          <Field label="Horas por mês">
+            <input type="number" style={inputStyle} value={precificacao.horasPorMes}
+              onChange={(e) => setPrecificacao({ ...precificacao, horasPorMes: e.target.value })} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <Field label="Margem de segurança (%)">
+            <input type="number" style={inputStyle} value={(precificacao.margemSeguranca * 100).toFixed(2)}
+              onChange={(e) => setPrecificacao({ ...precificacao, margemSeguranca: (Number(e.target.value) || 0) / 100 })} />
+          </Field>
+          <Field label="Taxa de cartão (%)">
+            <input type="number" style={inputStyle} value={(precificacao.taxaCartao * 100).toFixed(2)}
+              onChange={(e) => setPrecificacao({ ...precificacao, taxaCartao: (Number(e.target.value) || 0) / 100 })} />
+          </Field>
+          <Field label="Imposto (%)">
+            <input type="number" style={inputStyle} value={(precificacao.impostoSimples * 100).toFixed(2)}
+              onChange={(e) => setPrecificacao({ ...precificacao, impostoSimples: (Number(e.target.value) || 0) / 100 })} />
+          </Field>
+        </div>
+
+        <div className="rounded-lg p-4" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+          <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Valor-hora calculado</div>
+          <div className="text-xl font-semibold" style={{ color: C.gold, fontFamily: "Fraunces" }}>{brl(valorHoraFinal)}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <ModuleHeader title="Orçamentos" sub={`${orcamentos.length} orçamentos · ${brl(valorEmAberto)} em aberto`}
-        right={<PrimaryBtn onClick={startNew}><Plus size={16} />Novo orçamento</PrimaryBtn>} />
+        right={
+          <div className="flex items-center gap-2">
+            <IconBtn onClick={() => setView("config")} title="Configurar calculadora"><Settings size={16} /></IconBtn>
+            <PrimaryBtn onClick={startNew}><Plus size={16} />Novo orçamento</PrimaryBtn>
+          </div>
+        } />
 
       <div className="flex gap-4 flex-wrap mb-6">
         <StatCard icon={Receipt} label="Orçamentos" value={orcamentos.length} />
@@ -1625,6 +1753,7 @@ export default function DieselFilmsOS() {
   const [contratos, setContratos, contratosLoaded] = useSharedState("df_contratos", seedContratos);
   const [equipe, setEquipe, equipeLoaded] = useSharedState("df_equipe", seedEquipe);
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSharedState("df_orcamentos", seedOrcamentos);
+  const [precificacao, setPrecificacao, precificacaoLoaded] = useSharedState("df_precificacao", seedPrecificacao);
 
   const [sessionUserId, setSessionUserId] = useState(undefined); // undefined = ainda carregando
   useEffect(() => {
@@ -1638,7 +1767,7 @@ export default function DieselFilmsOS() {
     })();
   }, []);
 
-  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && sessionUserId !== undefined;
+  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && sessionUserId !== undefined;
 
   const [showRetry, setShowRetry] = useState(false);
   useEffect(() => {
@@ -1692,7 +1821,7 @@ export default function DieselFilmsOS() {
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
-      {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} />}
+      {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
       {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} />}
