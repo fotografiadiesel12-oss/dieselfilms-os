@@ -4,7 +4,7 @@ import {
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
-  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss
+  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -15,6 +15,7 @@ import {
 } from "./lib/precificacao.js";
 import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
 import { uploadImagem } from "./lib/mediaApi.js";
+import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -39,6 +40,7 @@ const C = {
   red: "#D2685B",
   amber: "#D9A441",
   blue: "#7B9BB0",
+  violet: "#B79EEA",
 };
 
 const FONTS = `
@@ -268,6 +270,7 @@ function Pill({ children, tone = "neutral" }) {
     red: { bg: "rgba(210,104,91,0.16)", color: C.red },
     amber: { bg: "rgba(217,164,65,0.16)", color: C.amber },
     blue: { bg: "rgba(123,155,176,0.16)", color: C.blue },
+    violet: { bg: "rgba(183,158,234,0.16)", color: C.violet },
   };
   const t = tones[tone] || tones.neutral;
   return (
@@ -277,6 +280,10 @@ function Pill({ children, tone = "neutral" }) {
     </span>
   );
 }
+
+const PAPEIS = ["Dono", "Sócio", "Admin", "Financeiro", "Editor", "Membro"];
+const papelTone = { Dono: "gold", "Sócio": "violet", Admin: "blue", Financeiro: "green", Editor: "amber", Membro: "neutral" };
+const CARGOS_GESTAO = ["Dono", "Sócio", "Admin"];
 
 const priorityTone = { Urgente: "red", Alta: "amber", Normal: "blue", Baixa: "neutral" };
 const statusTone = {
@@ -502,6 +509,66 @@ function ProfileModal({ user, onSave, onClose }) {
   );
 }
 
+function NotificationBell({ currentUser }) {
+  const [notifs, setNotifs] = useState([]);
+  const [open, setOpen] = useState(false);
+
+  const fetchNotifs = () => {
+    listNotifications(currentUser.id).then(setNotifs).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 20000);
+    return () => clearInterval(interval);
+  }, [currentUser.id]);
+
+  const naoLidas = notifs.filter((n) => !n.lida).length;
+
+  const abrir = () => {
+    const proximoEstado = !open;
+    setOpen(proximoEstado);
+    if (proximoEstado && naoLidas > 0) {
+      notifs.filter((n) => !n.lida).forEach((n) => markNotificationRead(n.id).catch(() => {}));
+      setNotifs(notifs.map((n) => ({ ...n, lida: true })));
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={abrir} className="relative p-2 rounded-lg" style={{ color: C.textDim }} title="Notificações">
+        <Bell size={18} />
+        {naoLidas > 0 && (
+          <span className="absolute top-0 right-0 rounded-full text-[9px] font-bold flex items-center justify-center"
+            style={{ width: 15, height: 15, background: C.red, color: "#fff" }}>
+            {naoLidas > 9 ? "9+" : naoLidas}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-20 rounded-xl overflow-hidden" style={{ top: "100%", right: 0, marginTop: 6, width: 280, background: C.surface, border: `1px solid ${C.border}`, maxHeight: 320, overflowY: "auto" }}>
+          <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: C.textFaint, borderBottom: `1px solid ${C.borderSoft}` }}>
+            Notificações
+          </div>
+          {notifs.length === 0 && <div className="px-4 py-4 text-xs" style={{ color: C.textFaint }}>Nenhuma notificação ainda.</div>}
+          {notifs.map((n) => (
+            <div key={n.id} className="px-4 py-3 text-xs" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+              <div style={{ color: C.text, fontFamily: "Inter" }}>
+                {n.tipo === "tarefa"
+                  ? <>Nova tarefa pra você: <span style={{ color: C.goldBright, fontWeight: 600 }}>{n.trecho}</span></>
+                  : <><span style={{ color: C.goldBright, fontWeight: 600 }}>{n.autorNome}</span> te marcou: "{n.trecho}"</>}
+              </div>
+              <div style={{ color: C.textFaint, marginTop: 3 }}>
+                {new Date(n.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -517,9 +584,12 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
-      <div className="pl-8 pr-5 pt-7 pb-6" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
-        <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
+      <div className="pl-8 pr-5 pt-7 pb-6 flex items-start justify-between" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+        <div>
+          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
+          <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
+        </div>
+        <NotificationBell currentUser={user} />
       </div>
 
       <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1">
@@ -567,6 +637,7 @@ function MobileTopBar({ user, onLogout }) {
       style={{ height: 56, background: C.bgSoft, borderBottom: `1px solid ${C.borderSoft}` }}>
       <img src={LOGO_IMG} alt="Diesel Films" style={{ height: 30, width: "auto" }} />
       <div className="flex items-center gap-3">
+        <NotificationBell currentUser={user} />
         <span className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>{user.nome.split(" ")[0]}</span>
         <button onClick={onLogout} className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
       </div>
@@ -705,15 +776,23 @@ function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
 /* ---------------------------------------------------------
    DEMANDAS
 --------------------------------------------------------- */
-function DemandasModule({ demandas, setDemandas, clientes }) {
+function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "" });
+  const [form, setForm] = useState({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
   const groups = ["A iniciar", "Criando", "Enviar pra aprovacao", "Em aprovacao", "Alteracao", "Entregue"];
 
   const add = () => {
     if (!form.title.trim()) return;
     setDemandas([{ id: uid(), ...form }, ...demandas]);
-    setForm({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "" });
+    if (form.responsavelId) {
+      createNotification({
+        userId: form.responsavelId,
+        tipo: "tarefa",
+        autorNome: "",
+        trecho: form.title,
+      }).catch(() => {});
+    }
+    setForm({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
     setOpen(false);
   };
   const remove = (id) => setDemandas(demandas.filter((d) => d.id !== id));
@@ -748,7 +827,9 @@ function DemandasModule({ demandas, setDemandas, clientes }) {
                       <Circle size={14} color={C.textFaint} />
                       <div>
                         <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
-                        <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{d.client}</div>
+                        <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>
+                          {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
+                        </div>
                       </div>
                     </button>
                     <div className="flex items-center gap-3">
@@ -781,6 +862,12 @@ function DemandasModule({ demandas, setDemandas, clientes }) {
             </Field>
             <Field label="Data"><input style={inputStyle} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} placeholder="Ex: 30 ago" /></Field>
           </div>
+          <Field label="Responsável (notifica a pessoa)">
+            <select style={inputStyle} value={form.responsavelId} onChange={(e) => setForm({ ...form, responsavelId: e.target.value })}>
+              <option value="">Sem responsável definido</option>
+              {equipe.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+          </Field>
           <PrimaryBtn onClick={add}><Plus size={16} />Adicionar</PrimaryBtn>
         </Modal>
       )}
@@ -1161,6 +1248,11 @@ function highlightMentions(texto, equipe) {
   );
 }
 
+function extrairMencoes(texto, equipe) {
+  const nomes = equipe.map((u) => u.nome).sort((a, b) => b.length - a.length);
+  return equipe.filter((u) => nomes.includes(u.nome) && texto.includes(`@${u.nome}`));
+}
+
 function CommentBox({ equipe, onSubmit }) {
   const [texto, setTexto] = useState("");
   const [mentionQuery, setMentionQuery] = useState(null);
@@ -1230,7 +1322,7 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
   const [showComments, setShowComments] = useState(false);
   const reagiuVisto = post.reacoes.visto.includes(currentUser.id);
   const reagiuTrabalhando = post.reacoes.trabalhando.includes(currentUser.id);
-  const podeExcluir = post.autorId === currentUser.id || currentUser.papel === "Admin";
+  const podeExcluir = post.autorId === currentUser.id || CARGOS_GESTAO.includes(currentUser.papel);
   const iniciais = post.autorNome.split(" ").map((p) => p[0]).slice(0, 2).join("");
   const data = new Date(post.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
@@ -1387,6 +1479,16 @@ function FeedModule({ equipe, currentUser }) {
     const novaLista = [...post.comentarios, comentario];
     setPosts(posts.map((p) => (p.id === post.id ? { ...p, comentarios: novaLista } : p)));
     updatePost(post.id, { comentarios: novaLista }).catch(() => {});
+
+    const mencionados = extrairMencoes(texto, equipe).filter((u) => u.id !== currentUser.id);
+    mencionados.forEach((u) => {
+      createNotification({
+        userId: u.id,
+        tipo: "mencao",
+        autorNome: currentUser.nome,
+        trecho: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
+      }).catch(() => {});
+    });
   };
 
   const remove = (id) => {
@@ -2041,9 +2143,14 @@ function ClientesModule({ clientes, setClientes }) {
 /* ---------------------------------------------------------
    EQUIPE / ACESSO
 --------------------------------------------------------- */
-function EquipeModule({ equipe, setEquipe, currentUserId }) {
+const emptyMembroForm = () => ({ nome: "", email: "", senha: "", papel: "Membro", modulos: ["feed", "dashboard", "demandas"] });
+
+function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome: "", email: "", senha: "", papel: "Membro", modulos: ["dashboard", "demandas"] });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyMembroForm());
+
+  const canManage = CARGOS_GESTAO.includes(currentUserPapel);
 
   const toggleModulo = (id) => {
     setForm((f) => ({
@@ -2052,10 +2159,30 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
     }));
   };
 
-  const add = () => {
-    if (!form.nome.trim() || !form.email.trim() || !form.senha.trim()) return;
-    setEquipe([...equipe, { id: uid(), ...form }]);
-    setForm({ nome: "", email: "", senha: "", papel: "Membro", modulos: ["dashboard", "demandas"] });
+  const startNew = () => {
+    setForm(emptyMembroForm());
+    setEditingId(null);
+    setOpen(true);
+  };
+
+  const startEdit = (m) => {
+    setForm({ nome: m.nome, email: m.email, senha: "", papel: m.papel, modulos: [...m.modulos] });
+    setEditingId(m.id);
+    setOpen(true);
+  };
+
+  const save = () => {
+    if (!form.nome.trim() || !form.email.trim()) return;
+    if (editingId) {
+      setEquipe(equipe.map((m) => (m.id === editingId
+        ? { ...m, nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, ...(form.senha.trim() ? { senha: form.senha } : {}) }
+        : m)));
+    } else {
+      if (!form.senha.trim()) return;
+      setEquipe([...equipe, { id: uid(), ...form }]);
+    }
+    setForm(emptyMembroForm());
+    setEditingId(null);
     setOpen(false);
   };
   const remove = (id) => setEquipe(equipe.filter((e) => e.id !== id));
@@ -2063,7 +2190,7 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
   return (
     <div>
       <ModuleHeader title="Acesso" sub={`${equipe.length} pessoas com login no DieselFilms OS`}
-        right={<PrimaryBtn onClick={() => setOpen(true)}><Plus size={16} />Cadastrar funcionário</PrimaryBtn>} />
+        right={canManage && <PrimaryBtn onClick={startNew}><Plus size={16} />Cadastrar funcionário</PrimaryBtn>} />
 
       <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
         {equipe.map((m, idx) => (
@@ -2085,21 +2212,24 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Pill tone={m.papel === "Admin" || m.papel === "Sócio" ? "gold" : "neutral"}>{m.papel}</Pill>
-              {m.id !== currentUserId && <IconBtn onClick={() => remove(m.id)}><Trash2 size={14} /></IconBtn>}
+              <Pill tone={papelTone[m.papel] || "neutral"}>{m.papel}</Pill>
+              {canManage && <IconBtn onClick={() => startEdit(m)} title="Editar"><Pencil size={14} /></IconBtn>}
+              {canManage && m.id !== currentUserId && <IconBtn onClick={() => remove(m.id)} title="Remover"><Trash2 size={14} /></IconBtn>}
             </div>
           </div>
         ))}
       </div>
 
       {open && (
-        <Modal title="Cadastrar funcionário" onClose={() => setOpen(false)}>
+        <Modal title={editingId ? "Editar funcionário" : "Cadastrar funcionário"} onClose={() => setOpen(false)}>
           <Field label="Nome"><input style={inputStyle} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
           <Field label="E-mail de login"><input type="email" style={inputStyle} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label="Senha"><input type="text" style={inputStyle} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder="defina uma senha inicial" /></Field>
+          <Field label={editingId ? "Nova senha (deixe em branco para manter)" : "Senha"}>
+            <input type="text" style={inputStyle} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder={editingId ? "••••••••" : "defina uma senha inicial"} />
+          </Field>
           <Field label="Cargo">
             <select style={inputStyle} value={form.papel} onChange={(e) => setForm({ ...form, papel: e.target.value })}>
-              {["Membro", "Editor", "Financeiro", "Sócio", "Admin"].map((p) => <option key={p}>{p}</option>)}
+              {PAPEIS.map((p) => <option key={p}>{p}</option>)}
             </select>
           </Field>
           <Field label="Módulos visíveis para esse cargo">
@@ -2113,7 +2243,7 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
             </div>
           </Field>
           <div className="mt-2">
-            <PrimaryBtn onClick={add}><Plus size={16} />Cadastrar</PrimaryBtn>
+            <PrimaryBtn onClick={save}><Plus size={16} />{editingId ? "Salvar alterações" : "Cadastrar"}</PrimaryBtn>
           </div>
         </Modal>
       )}
@@ -2192,7 +2322,7 @@ export default function DieselFilmsOS() {
     return <LoginScreen equipe={equipe} onLogin={login} />;
   }
 
-  const canSee = (id) => currentUser.papel === "Admin" || currentUser.modulos.includes(id);
+  const canSee = (id) => CARGOS_GESTAO.includes(currentUser.papel) || currentUser.modulos.includes(id);
   const allowedNav = NAV.filter((item) => canSee(item.id));
   const activeSafe = allowedNav.some((n) => n.id === active) ? active : (allowedNav[0]?.id || "dashboard");
 
@@ -2201,12 +2331,12 @@ export default function DieselFilmsOS() {
       {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
       {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} isMobile={isMobile} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
-      {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} />}
+      {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
       {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} />}
-      {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} />}
+      {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} />}
       {allowedNav.length === 0 && (
         <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>
           Seu cargo ainda não tem módulos liberados. Fale com o administrador.
