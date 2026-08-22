@@ -1,5 +1,3 @@
-import { upload } from "@vercel/blob/client";
-
 async function request(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) {
@@ -32,12 +30,4 @@ export function updatePost(id, data) {
 
 export function deletePost(id) {
   return request(`/api/feed/${encodeURIComponent(id)}`, { method: "DELETE" });
-}
-
-export async function uploadFotoPost(file) {
-  const blob = await upload(file.name, file, {
-    access: "public",
-    handleUploadUrl: "/api/feed-upload",
-  });
-  return blob.url;
 }

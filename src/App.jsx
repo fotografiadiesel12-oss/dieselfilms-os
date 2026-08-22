@@ -13,7 +13,8 @@ import {
   seedPrecificacao, calcularValorHoraFinal, calcularItemTotal,
   calcularTotalLiquido, calcularInvestimentoTotal,
 } from "./lib/precificacao.js";
-import { listPosts, createPost, updatePost, deletePost, uploadFotoPost } from "./lib/feedApi.js";
+import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
+import { uploadImagem } from "./lib/mediaApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -448,7 +449,66 @@ const NAV = [
   { id: "equipe", label: "Acesso", icon: ShieldCheck },
 ];
 
-function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
+function ProfileModal({ user, onSave, onClose }) {
+  const [fotoUrl, setFotoUrl] = useState(user.fotoUrl || "");
+  const [aniversario, setAniversario] = useState(user.aniversario || "");
+  const [telefone, setTelefone] = useState(user.telefone || "");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadImagem(file);
+      setFotoUrl(url);
+    } catch {
+      // silencioso — usuário pode tentar de novo
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const salvar = async () => {
+    setSaving(true);
+    await onSave({ fotoUrl, aniversario, telefone });
+    setSaving(false);
+    onClose();
+  };
+
+  const iniciais = user.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+
+  return (
+    <Modal title="Configurar perfil" onClose={onClose}>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-semibold overflow-hidden"
+          style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+          {fotoUrl ? <img src={fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+        </div>
+        <div>
+          <input type="file" accept="image/*" onChange={handleFile} className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }} />
+          {uploading && <div className="text-xs mt-1" style={{ color: C.textFaint }}>Enviando...</div>}
+        </div>
+      </div>
+      <Field label="Data de aniversário">
+        <input type="date" style={inputStyle} value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
+      </Field>
+      <Field label="Telefone">
+        <input style={inputStyle} value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 99999-9999" />
+      </Field>
+      <PrimaryBtn onClick={salvar} disabled={saving || uploading}>{saving ? "Salvando..." : "Salvar perfil"}</PrimaryBtn>
+    </Modal>
+  );
+}
+
+function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const salvarPerfil = async (dados) => {
+    setEquipe(equipe.map((m) => (m.id === user.id ? { ...m, ...dados } : m)));
+  };
+
   return (
     <div className="relative flex flex-col h-full" style={{
       width: 236, borderRight: `1px solid ${C.borderSoft}`,
@@ -483,18 +543,20 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
       </nav>
 
       <div className="pl-8 pr-5 py-5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+        <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2.5 mb-3 text-left w-full">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
             style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-            {user.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+            {user.fotoUrl ? <img src={user.fotoUrl} alt="" className="w-full h-full object-cover" /> : user.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
           </div>
           <div>
             <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{user.nome}</div>
-            <div className="text-xs" style={{ color: C.textFaint }}>{user.papel}</div>
+            <div className="text-xs" style={{ color: C.textFaint }}>{user.papel} · configurar perfil</div>
           </div>
-        </div>
+        </button>
         <button onClick={onLogout} className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
       </div>
+
+      {profileOpen && <ProfileModal user={user} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }
@@ -1274,7 +1336,7 @@ function FeedModule({ equipe, currentUser }) {
     if (!file) return;
     setUploading(true);
     try {
-      const url = await uploadFotoPost(file);
+      const url = await uploadImagem(file);
       setFotoUrl(url);
     } catch {
       setError("Não deu pra enviar a foto. Confirme se o Vercel Blob está conectado.");
@@ -2008,9 +2070,9 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
           <div key={m.id} className="flex items-center justify-between px-5 py-4 flex-wrap gap-3"
             style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold"
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
                 style={{ background: C.goldDim, color: C.text, fontFamily: "Inter" }}>
-                {m.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                {m.fotoUrl ? <img src={m.fotoUrl} alt="" className="w-full h-full object-cover" /> : m.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
               </div>
               <div>
                 <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>
@@ -2177,7 +2239,7 @@ export default function DieselFilmsOS() {
       backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
     }}>
       <style>{FONTS}</style>
-      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} />
+      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} equipe={equipe} setEquipe={setEquipe} />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-8 py-8">
           {modules}
