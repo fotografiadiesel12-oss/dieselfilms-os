@@ -346,7 +346,7 @@ function LoginScreen({ equipe, onLogin }) {
 
   return (
     <div className="w-full min-h-screen flex items-center justify-center px-5"
-      style={{ background: `linear-gradient(180deg, rgba(10,10,9,0.55), rgba(10,10,9,0.92)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+      style={{ backgroundColor: C.bg, backgroundImage: `linear-gradient(180deg, rgba(10,10,9,0.55), rgba(10,10,9,0.92)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
       <style>{FONTS}</style>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
@@ -410,7 +410,8 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
   return (
     <div className="relative flex flex-col h-full" style={{
       width: 236, borderRight: `1px solid ${C.borderSoft}`,
-      background: `linear-gradient(180deg, rgba(17,17,16,0.85), rgba(17,17,16,0.97)), url(${BG_IMG})`,
+      backgroundColor: C.bgSoft,
+      backgroundImage: `linear-gradient(180deg, rgba(17,17,16,0.85), rgba(17,17,16,0.97)), url(${BG_IMG})`,
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
@@ -1594,7 +1595,7 @@ export default function DieselFilmsOS() {
   if (!allLoaded) {
     return (
       <div className="w-full h-screen flex items-center justify-center"
-        style={{ background: `linear-gradient(180deg, rgba(10,10,9,0.7), rgba(10,10,9,0.95)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+        style={{ backgroundColor: C.bg, backgroundImage: `linear-gradient(180deg, rgba(10,10,9,0.7), rgba(10,10,9,0.95)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
         <style>{FONTS}</style>
         <div className="flex flex-col items-center gap-3">
           <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 64, height: "auto" }} className="animate-pulse" />
@@ -1651,7 +1652,8 @@ export default function DieselFilmsOS() {
   if (isMobile) {
     return (
       <div className="w-full min-h-screen" style={{
-        background: `linear-gradient(180deg, rgba(10,10,9,0.65), rgba(10,10,9,0.96) 380px), url(${BG_IMG})`,
+        backgroundColor: C.bg,
+        backgroundImage: `linear-gradient(180deg, rgba(10,10,9,0.65), rgba(10,10,9,0.96) 380px), url(${BG_IMG})`,
         backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
       }}>
         <style>{FONTS}</style>
@@ -1666,7 +1668,8 @@ export default function DieselFilmsOS() {
 
   return (
     <div className="w-full h-screen flex" style={{
-      background: `linear-gradient(180deg, rgba(10,10,9,0.65), rgba(10,10,9,0.97) 480px), url(${BG_IMG})`,
+      backgroundColor: C.bg,
+      backgroundImage: `linear-gradient(180deg, rgba(10,10,9,0.65), rgba(10,10,9,0.97) 480px), url(${BG_IMG})`,
       backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
     }}>
       <style>{FONTS}</style>
