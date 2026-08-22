@@ -2,5 +2,8 @@
   "framework": "vite",
   "installCommand": "npm install",
   "buildCommand": "npm install && npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/orcamento/:id", "destination": "/index.html" }
+  ]
 }

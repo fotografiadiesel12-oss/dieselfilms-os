@@ -3,8 +3,12 @@ import {
   LayoutDashboard, ListChecks, Wallet, FileText, Users, ShieldCheck,
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
-  MessageSquare, ArrowRight, CheckCircle2
+  MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
+  Pencil, Heart, MessageCircle, Send, Bookmark, Play
 } from "lucide-react";
+import ReelsCard from "./components/ReelsCard.jsx";
+import DirectVideoCard from "./components/DirectVideoCard.jsx";
+import { createOrcamento, updateOrcamento, deleteOrcamento } from "./lib/orcamentosApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -99,7 +103,7 @@ const seedContratos = () => ([
   { id: uid(), titulo: "Cobertura foto + vídeo", cliente: "Bruna Tartari", valor: 7600, tipo: "Casamento", status: "Rascunho" },
 ]);
 
-const ALL_MODULES = ["dashboard", "leads", "demandas", "financeiro", "contratos", "clientes", "equipe"];
+const ALL_MODULES = ["dashboard", "leads", "demandas", "financeiro", "orcamentos", "contratos", "clientes", "equipe"];
 
 const ESTAGIOS = ["Novo lead", "Contato feito", "Proposta enviada", "Negociacao", "Fechado ganho", "Fechado perdido"];
 const estagioLabel = {
@@ -111,38 +115,52 @@ const estagioTone = {
   "Negociacao": "amber", "Fechado ganho": "green", "Fechado perdido": "red",
 };
 
+const TEMPERATURAS = ["Quente", "Morno", "Frio"];
+const temperaturaTone = { Quente: "red", Morno: "amber", Frio: "blue" };
+
 const seedLeads = () => ([
   {
     id: uid(), nome: "Marina Costa", empresa: "", telefone: "(11) 99887-1234", email: "marina.costa@gmail.com",
-    origem: "Instagram", valorEstimado: 6500, responsavel: "Yuri Diesel", estagio: "Novo lead", criadoEm: "18/08",
+    origem: "Instagram", valorEstimado: 6500, responsavel: "Yuri Diesel", estagio: "Novo lead", temperatura: "Quente", criadoEm: "18/08",
     notas: [],
   },
   {
     id: uid(), nome: "Rafael Nogueira", empresa: "", telefone: "(11) 98765-4321", email: "rafael.n@gmail.com",
-    origem: "Indicação", valorEstimado: 8200, responsavel: "Luís Antônio", estagio: "Contato feito", criadoEm: "15/08",
+    origem: "Indicação", valorEstimado: 8200, responsavel: "Luís Antônio", estagio: "Contato feito", temperatura: "Morno", criadoEm: "15/08",
     notas: [{ id: uid(), texto: "Liguei e agendei uma call pra sexta às 10h.", data: "16/08" }],
   },
   {
     id: uid(), nome: "Studio Bella Eventos", empresa: "Studio Bella Eventos", telefone: "(11) 3345-2210", email: "contato@studiobella.com.br",
-    origem: "Site", valorEstimado: 12000, responsavel: "Yuri Diesel", estagio: "Proposta enviada", criadoEm: "10/08",
+    origem: "Site", valorEstimado: 12000, responsavel: "Yuri Diesel", estagio: "Proposta enviada", temperatura: "Quente", criadoEm: "10/08",
     notas: [{ id: uid(), texto: "Enviei proposta de parceria fixa para cobertura de eventos mensais.", data: "12/08" }],
   },
   {
     id: uid(), nome: "Camila Ferraz", empresa: "", telefone: "(11) 97711-8890", email: "camila.ferraz@gmail.com",
-    origem: "Indicação", valorEstimado: 9000, responsavel: "Luís Antônio", estagio: "Negociacao", criadoEm: "05/08",
+    origem: "Indicação", valorEstimado: 9000, responsavel: "Luís Antônio", estagio: "Negociacao", temperatura: "Quente", criadoEm: "05/08",
     notas: [{ id: uid(), texto: "Pediu desconto à vista, vamos fechar 8.500 em 2x.", data: "14/08" }],
   },
   {
     id: uid(), nome: "Juliana & Pedro", empresa: "", telefone: "(11) 96622-3345", email: "juliana.pedro@gmail.com",
-    origem: "Instagram", valorEstimado: 7800, responsavel: "Yuri Diesel", estagio: "Fechado ganho", criadoEm: "28/07",
+    origem: "Instagram", valorEstimado: 7800, responsavel: "Yuri Diesel", estagio: "Fechado ganho", temperatura: "Quente", criadoEm: "28/07",
     notas: [{ id: uid(), texto: "Fechado! Contrato assinado, casamento em novembro.", data: "02/08" }], convertido: false,
   },
   {
     id: uid(), nome: "Eventos Prisma", empresa: "Eventos Prisma", telefone: "(11) 3322-9987", email: "comercial@eventosprisma.com.br",
-    origem: "Site", valorEstimado: 5000, responsavel: "Luís Antônio", estagio: "Fechado perdido", criadoEm: "20/07",
+    origem: "Site", valorEstimado: 5000, responsavel: "Luís Antônio", estagio: "Fechado perdido", temperatura: "Frio", criadoEm: "20/07",
     notas: [{ id: uid(), texto: "Fecharam com outro fornecedor por prazo de entrega.", data: "25/07" }],
   },
 ]);
+
+const seedOrcamentos = () => ([]);
+
+const CATALOGO_ITENS = [
+  { descricao: "Essencial Cinema", detalhes: "2 teasers (30-60s) + filme do casamento (3-4min) + drone incluso + entrega personalizada", valor: 3500 },
+  { descricao: "Making of da Noiva", detalhes: "", valor: 560 },
+  { descricao: "Making of do Noivo", detalhes: "", valor: 460 },
+  { descricao: "Curta (10-30min)", detalhes: "", valor: 1090 },
+  { descricao: "Pré-Wedding", detalhes: "", valor: 1200 },
+  { descricao: "Entrega Flash", detalhes: "Entrega prioritária", valor: 1200 },
+];
 
 const seedEquipe = () => ([
   { id: uid(), nome: "Yuri Diesel", email: "yuri@dieselfilms.com", senha: "diesel2026", papel: "Admin", modulos: [...ALL_MODULES] },
@@ -229,6 +247,7 @@ const statusLabel = {
 };
 const clientTone = { Ativo: "green", Prospect: "amber", Pausado: "neutral", Encerrado: "neutral" };
 const contratoTone = { Rascunho: "amber", Enviado: "blue", Assinado: "green" };
+const orcamentoTone = { Rascunho: "neutral", Enviado: "blue", Visualizado: "gold", Aprovado: "green", Recusado: "red" };
 
 function IconBtn({ onClick, children, title }) {
   return (
@@ -381,6 +400,7 @@ const NAV = [
   { id: "leads", label: "Leads", icon: Radar },
   { id: "demandas", label: "Demandas", icon: ListChecks },
   { id: "financeiro", label: "Financeiro", icon: Wallet },
+  { id: "orcamentos", label: "Orçamentos", icon: Receipt },
   { id: "contratos", label: "Contratos", icon: FileText },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "equipe", label: "Acesso", icon: ShieldCheck },
@@ -670,7 +690,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
   const [openNew, setOpenNew] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [noteText, setNoteText] = useState("");
-  const [form, setForm] = useState({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "" });
+  const [form, setForm] = useState({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
 
   const selected = leads.find((l) => l.id === selectedId) || null;
 
@@ -692,7 +712,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
       notas: [],
     };
     setLeads([novo, ...leads]);
-    setForm({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "" });
+    setForm({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
     setOpenNew(false);
   };
 
@@ -702,6 +722,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
   };
 
   const setEstagio = (id, estagio) => setLeads(leads.map((l) => (l.id === id ? { ...l, estagio } : l)));
+  const setTemperatura = (id, temperatura) => setLeads(leads.map((l) => (l.id === id ? { ...l, temperatura } : l)));
 
   const addNota = () => {
     if (!noteText.trim() || !selected) return;
@@ -756,6 +777,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
                       </div>
                     </button>
                     <div className="flex items-center gap-3">
+                      {l.temperatura && <Pill tone={temperaturaTone[l.temperatura]}>{l.temperatura}</Pill>}
                       <span className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{brl(l.valorEstimado)}</span>
                       <span className="text-xs" style={{ color: C.textFaint, minWidth: 44, textAlign: "right" }}>{l.criadoEm}</span>
                       <IconBtn onClick={() => removeLead(l.id)} title="Remover"><Trash2 size={14} /></IconBtn>
@@ -785,7 +807,14 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
             </Field>
             <Field label="Valor estimado (R$)"><input type="number" style={inputStyle} value={form.valorEstimado} onChange={(e) => setForm({ ...form, valorEstimado: e.target.value })} /></Field>
           </div>
-          <Field label="Responsável"><input style={inputStyle} value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })} placeholder="Quem vai atender" /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Responsável"><input style={inputStyle} value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })} placeholder="Quem vai atender" /></Field>
+            <Field label="Temperatura">
+              <select style={inputStyle} value={form.temperatura} onChange={(e) => setForm({ ...form, temperatura: e.target.value })}>
+                {TEMPERATURAS.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+          </div>
           <PrimaryBtn onClick={addLead}><Plus size={16} />Adicionar lead</PrimaryBtn>
         </Modal>
       )}
@@ -800,11 +829,18 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
             <div style={{ color: C.gold, fontWeight: 600 }}>{brl(selected.valorEstimado)}</div>
           </div>
 
-          <Field label="Estágio">
-            <select style={inputStyle} value={selected.estagio} onChange={(e) => setEstagio(selected.id, e.target.value)}>
-              {ESTAGIOS.map((e) => <option key={e} value={e}>{estagioLabel[e]}</option>)}
-            </select>
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Estágio">
+              <select style={inputStyle} value={selected.estagio} onChange={(e) => setEstagio(selected.id, e.target.value)}>
+                {ESTAGIOS.map((e) => <option key={e} value={e}>{estagioLabel[e]}</option>)}
+              </select>
+            </Field>
+            <Field label="Temperatura">
+              <select style={inputStyle} value={selected.temperatura || "Morno"} onChange={(e) => setTemperatura(selected.id, e.target.value)}>
+                {TEMPERATURAS.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+          </div>
 
           {selected.estagio === "Fechado ganho" && !selected.convertido && (
             <button onClick={converterEmCliente}
@@ -999,6 +1035,356 @@ function ContratosModule({ contratos, setContratos }) {
 }
 
 /* ---------------------------------------------------------
+   ORÇAMENTOS
+--------------------------------------------------------- */
+const emptyOrcamentoForm = () => ({
+  origem: "manual",
+  leadId: "",
+  cliente: { nome: "", email: "", telefone: "" },
+  titulo: "",
+  itens: [],
+  videos: [],
+  observacoes: "",
+  status: "Rascunho",
+});
+
+function ItemRow({ item, onChange, onRemove }) {
+  return (
+    <div className="flex gap-2 items-start mb-2 flex-wrap">
+      <input style={{ ...inputStyle, flex: "2 1 160px" }} placeholder="Descrição" value={item.descricao}
+        onChange={(e) => onChange({ ...item, descricao: e.target.value })} />
+      <input style={{ ...inputStyle, flex: "2 1 160px" }} placeholder="Detalhes (opcional)" value={item.detalhes}
+        onChange={(e) => onChange({ ...item, detalhes: e.target.value })} />
+      <input type="number" style={{ ...inputStyle, width: 100 }} placeholder="Valor" value={item.valor}
+        onChange={(e) => onChange({ ...item, valor: e.target.value })} />
+      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Qtd" value={item.quantidade}
+        onChange={(e) => onChange({ ...item, quantidade: e.target.value })} />
+      <IconBtn onClick={onRemove} title="Remover"><Trash2 size={14} /></IconBtn>
+    </div>
+  );
+}
+
+function VideoRow({ video, onChange, onRemove }) {
+  return (
+    <div className="rounded-lg p-3 mb-3" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex gap-2">
+          {["social", "direto"].map((t) => (
+            <button key={t} type="button" onClick={() => onChange({ ...video, tipo: t })}
+              className="px-2.5 py-1 rounded-md text-xs font-medium"
+              style={{
+                background: video.tipo === t ? C.gold : "transparent",
+                color: video.tipo === t ? "#141209" : C.textDim,
+                border: `1px solid ${video.tipo === t ? C.gold : C.border}`, fontFamily: "Inter",
+              }}>
+              {t === "social" ? "Rede social" : "Link direto"}
+            </button>
+          ))}
+        </div>
+        <IconBtn onClick={onRemove} title="Remover"><Trash2 size={14} /></IconBtn>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1 min-w-[220px]">
+          <Field label="Link">
+            <input style={inputStyle} value={video.link} onChange={(e) => onChange({ ...video, link: e.target.value })} placeholder="https://instagram.com/reel/..." />
+          </Field>
+          {video.tipo === "social" ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="@usuário"><input style={inputStyle} value={video.handle || ""} onChange={(e) => onChange({ ...video, handle: e.target.value })} placeholder="@dieselfilms" /></Field>
+                <Field label="Capa (URL da imagem)"><input style={inputStyle} value={video.thumbnailUrl || ""} onChange={(e) => onChange({ ...video, thumbnailUrl: e.target.value })} /></Field>
+              </div>
+              <Field label="Legenda (opcional)"><input style={inputStyle} value={video.titulo || ""} onChange={(e) => onChange({ ...video, titulo: e.target.value })} /></Field>
+            </>
+          ) : (
+            <Field label="Título (opcional)"><input style={inputStyle} value={video.titulo || ""} onChange={(e) => onChange({ ...video, titulo: e.target.value })} /></Field>
+          )}
+        </div>
+        <div style={{ width: 220, flexShrink: 0 }}>
+          {video.tipo === "social"
+            ? <ReelsCard thumbnailUrl={video.thumbnailUrl} handle={video.handle} link={video.link} titulo={video.titulo} />
+            : <DirectVideoCard link={video.link} titulo={video.titulo} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ORCAMENTO_STATUSES = ["Rascunho", "Enviado", "Visualizado", "Aprovado", "Recusado"];
+
+function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
+  const [view, setView] = useState("list");
+  const [editingId, setEditingId] = useState(null);
+  const [filter, setFilter] = useState("Todos");
+  const [form, setForm] = useState(emptyOrcamentoForm());
+  const [saving, setSaving] = useState(false);
+  const [linkWarning, setLinkWarning] = useState("");
+  const [savedLink, setSavedLink] = useState("");
+
+  const itemTotal = (it) => (Number(it.valor) || 0) * (Number(it.quantidade) || 1);
+  const orcTotal = (o) => (o.itens || []).reduce((s, it) => s + itemTotal(it), 0);
+  const totalForm = form.itens.reduce((s, it) => s + itemTotal(it), 0);
+
+  const counts = { Todos: orcamentos.length };
+  ORCAMENTO_STATUSES.forEach((s) => counts[s] = orcamentos.filter((o) => o.status === s).length);
+  const shown = filter === "Todos" ? orcamentos : orcamentos.filter((o) => o.status === filter);
+
+  const valorEmAberto = orcamentos.filter((o) => o.status !== "Recusado").reduce((s, o) => s + orcTotal(o), 0);
+  const aprovados = orcamentos.filter((o) => o.status === "Aprovado").length;
+  const recusados = orcamentos.filter((o) => o.status === "Recusado").length;
+  const taxaAprovacao = (aprovados + recusados) > 0 ? Math.round((aprovados / (aprovados + recusados)) * 100) : 0;
+
+  const startNew = () => {
+    setForm(emptyOrcamentoForm());
+    setEditingId(null);
+    setSavedLink("");
+    setLinkWarning("");
+    setView("builder");
+  };
+
+  const startEdit = (orc) => {
+    setForm({
+      origem: orc.origem || "manual",
+      leadId: orc.leadId || "",
+      cliente: { ...orc.cliente },
+      titulo: orc.titulo || "",
+      itens: (orc.itens || []).map((it) => ({ ...it })),
+      videos: (orc.videos || []).map((v) => ({ ...v })),
+      observacoes: orc.observacoes || "",
+      status: orc.status || "Rascunho",
+    });
+    setEditingId(orc.id);
+    setSavedLink(`${window.location.origin}/orcamento/${orc.id}`);
+    setLinkWarning("");
+    setView("builder");
+  };
+
+  const selectLead = (leadId) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) { setForm({ ...form, leadId: "" }); return; }
+    setForm({
+      ...form, leadId,
+      cliente: { nome: lead.empresa || lead.nome, email: lead.email, telefone: lead.telefone },
+      titulo: form.titulo || `Orçamento — ${lead.empresa || lead.nome}`,
+    });
+  };
+
+  const addItem = (preset) => setForm({
+    ...form,
+    itens: [...form.itens, { id: uid(), descricao: preset?.descricao || "", detalhes: preset?.detalhes || "", valor: preset?.valor || "", quantidade: 1 }],
+  });
+  const updateItem = (idx, patch) => {
+    const itens = form.itens.slice(); itens[idx] = patch; setForm({ ...form, itens });
+  };
+  const removeItem = (idx) => setForm({ ...form, itens: form.itens.filter((_, i) => i !== idx) });
+
+  const addVideo = () => setForm({ ...form, videos: [...form.videos, { id: uid(), tipo: "social", titulo: "", link: "", thumbnailUrl: "", handle: "" }] });
+  const updateVideo = (idx, patch) => {
+    const videos = form.videos.slice(); videos[idx] = patch; setForm({ ...form, videos });
+  };
+  const removeVideo = (idx) => setForm({ ...form, videos: form.videos.filter((_, i) => i !== idx) });
+
+  const save = async () => {
+    if (!form.cliente.nome.trim()) return;
+    setSaving(true);
+    setLinkWarning("");
+
+    const payload = {
+      ...form,
+      itens: form.itens.map((it) => ({ ...it, valor: Number(it.valor) || 0, quantidade: Number(it.quantidade) || 1 })),
+      titulo: form.titulo || `Orçamento — ${form.cliente.nome}`,
+    };
+
+    try {
+      if (editingId) {
+        const saved = await updateOrcamento(editingId, payload);
+        setOrcamentos(orcamentos.map((o) => (o.id === editingId ? saved : o)));
+        setSavedLink(`${window.location.origin}/orcamento/${editingId}`);
+      } else {
+        const saved = await createOrcamento(payload);
+        setOrcamentos([saved, ...orcamentos]);
+        setEditingId(saved.id);
+        setSavedLink(`${window.location.origin}/orcamento/${saved.id}`);
+      }
+    } catch {
+      const localId = editingId || uid();
+      const now = new Date().toISOString();
+      const localOrc = { ...payload, id: localId, createdAt: now, updatedAt: now };
+      if (editingId) {
+        setOrcamentos(orcamentos.map((o) => (o.id === editingId ? localOrc : o)));
+      } else {
+        setOrcamentos([localOrc, ...orcamentos]);
+        setEditingId(localId);
+      }
+      setSavedLink(`${window.location.origin}/orcamento/${localId}`);
+      setLinkWarning("Orçamento salvo só internamente — o link público ainda não funciona porque o backend não está configurado na Vercel.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyLink = (id) => {
+    navigator.clipboard.writeText(`${window.location.origin}/orcamento/${id}`).catch(() => {});
+  };
+
+  const remove = (id) => {
+    setOrcamentos(orcamentos.filter((o) => o.id !== id));
+    deleteOrcamento(id).catch(() => {});
+  };
+
+  if (view === "builder") {
+    return (
+      <div>
+        <ModuleHeader title={editingId ? "Editar orçamento" : "Novo orçamento"} sub="Monte os itens, valores e vídeos para enviar ao cliente"
+          right={<button onClick={() => setView("list")} className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>‹ Voltar</button>} />
+
+        <div className="flex gap-2 mb-4">
+          {[{ id: "lead", label: "Selecionar lead" }, { id: "manual", label: "Cliente avulso" }].map((o) => (
+            <button key={o.id} onClick={() => setForm({ ...form, origem: o.id })}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{
+                background: form.origem === o.id ? C.gold : C.surface,
+                color: form.origem === o.id ? "#141209" : C.textDim,
+                border: `1px solid ${form.origem === o.id ? C.gold : C.border}`, fontFamily: "Inter",
+              }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {form.origem === "lead" ? (
+          <Field label="Lead">
+            <select style={inputStyle} value={form.leadId} onChange={(e) => selectLead(e.target.value)}>
+              <option value="">Selecione um lead...</option>
+              {leads.map((l) => <option key={l.id} value={l.id}>{l.nome} — {l.temperatura || "Morno"}</option>)}
+            </select>
+          </Field>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Nome"><input style={inputStyle} value={form.cliente.nome} onChange={(e) => setForm({ ...form, cliente: { ...form.cliente, nome: e.target.value } })} /></Field>
+            <Field label="E-mail"><input style={inputStyle} value={form.cliente.email} onChange={(e) => setForm({ ...form, cliente: { ...form.cliente, email: e.target.value } })} /></Field>
+            <Field label="Telefone"><input style={inputStyle} value={form.cliente.telefone} onChange={(e) => setForm({ ...form, cliente: { ...form.cliente, telefone: e.target.value } })} /></Field>
+          </div>
+        )}
+
+        <Field label="Título do orçamento">
+          <input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder={`Orçamento — ${form.cliente.nome || "cliente"}`} />
+        </Field>
+
+        <div className="mt-5 mb-2 flex items-center justify-between">
+          <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Itens do orçamento</div>
+          <div className="text-sm" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(totalForm)}</div>
+        </div>
+        <div className="flex gap-2 flex-wrap mb-3">
+          {CATALOGO_ITENS.map((c) => (
+            <button key={c.descricao} type="button" onClick={() => addItem(c)}
+              className="px-2.5 py-1 rounded-md text-xs"
+              style={{ background: C.surface, color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              + {c.descricao}
+            </button>
+          ))}
+        </div>
+        {form.itens.map((item, idx) => (
+          <ItemRow key={item.id} item={item} onChange={(patch) => updateItem(idx, patch)} onRemove={() => removeItem(idx)} />
+        ))}
+        <button onClick={() => addItem()} className="flex items-center gap-1.5 text-xs mb-6" style={{ color: C.gold, fontFamily: "Inter" }}>
+          <Plus size={14} />Adicionar item em branco
+        </button>
+
+        <div className="mt-2 mb-2 text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Vídeos</div>
+        {form.videos.map((video, idx) => (
+          <VideoRow key={video.id} video={video} onChange={(patch) => updateVideo(idx, patch)} onRemove={() => removeVideo(idx)} />
+        ))}
+        <button onClick={addVideo} className="flex items-center gap-1.5 text-xs mb-6" style={{ color: C.gold, fontFamily: "Inter" }}>
+          <Plus size={14} />Adicionar vídeo
+        </button>
+
+        <Field label="Observações">
+          <textarea style={{ ...inputStyle, minHeight: 80 }} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <Field label="Status">
+            <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              {ORCAMENTO_STATUSES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {linkWarning && <div className="text-xs mb-3" style={{ color: C.amber, fontFamily: "Inter" }}>{linkWarning}</div>}
+
+        <PrimaryBtn onClick={save}>{saving ? "Salvando..." : <><Plus size={16} />Salvar orçamento</>}</PrimaryBtn>
+
+        {savedLink && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap p-3 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+            <span className="text-xs flex-1 min-w-[200px]" style={{ color: C.textDim, fontFamily: "Inter" }}>{savedLink}</span>
+            <button onClick={() => navigator.clipboard.writeText(savedLink).catch(() => {})}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+              <Copy size={13} />Copiar link
+            </button>
+            <a href={savedLink} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              <ExternalLink size={13} />Abrir
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <ModuleHeader title="Orçamentos" sub={`${orcamentos.length} orçamentos · ${brl(valorEmAberto)} em aberto`}
+        right={<PrimaryBtn onClick={startNew}><Plus size={16} />Novo orçamento</PrimaryBtn>} />
+
+      <div className="flex gap-4 flex-wrap mb-6">
+        <StatCard icon={Receipt} label="Orçamentos" value={orcamentos.length} />
+        <StatCard icon={Wallet} label="Valor em aberto" value={brl(valorEmAberto)} />
+        <StatCard icon={CheckCircle2} label="Taxa de aprovação" value={`${taxaAprovacao}%`} sub={`${aprovados} aprovados / ${recusados} recusados`} />
+      </div>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {["Todos", ...ORCAMENTO_STATUSES].map((s) => (
+          <button key={s} onClick={() => setFilter(s)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              background: filter === s ? C.gold : C.surface,
+              color: filter === s ? "#141209" : C.textDim,
+              border: `1px solid ${filter === s ? C.gold : C.border}`, fontFamily: "Inter",
+            }}>
+            {s} {counts[s] !== undefined ? counts[s] : ""}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+        {shown.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum orçamento aqui.</div>}
+        {shown.map((o, idx) => (
+          <div key={o.id} className="flex items-center justify-between px-5 py-4"
+            style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
+            <button className="flex items-center gap-3 text-left flex-1" onClick={() => startEdit(o)}>
+              <Receipt size={16} color={C.textFaint} />
+              <div>
+                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{o.titulo}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{o.cliente?.nome}</div>
+              </div>
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{brl(orcTotal(o))}</span>
+              <Pill tone={orcamentoTone[o.status]}>{o.status}</Pill>
+              <IconBtn onClick={() => copyLink(o.id)} title="Copiar link"><Copy size={14} /></IconBtn>
+              <IconBtn onClick={() => startEdit(o)} title="Editar"><Pencil size={14} /></IconBtn>
+              <IconBtn onClick={() => remove(o.id)} title="Excluir"><Trash2 size={14} /></IconBtn>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
    CLIENTES
 --------------------------------------------------------- */
 function ClientesModule({ clientes, setClientes }) {
@@ -1182,6 +1568,7 @@ export default function DieselFilmsOS() {
   const [financeiro, setFinanceiro, financeiroLoaded] = useSharedState("df_financeiro", seedFinanceiro);
   const [contratos, setContratos, contratosLoaded] = useSharedState("df_contratos", seedContratos);
   const [equipe, setEquipe, equipeLoaded] = useSharedState("df_equipe", seedEquipe);
+  const [orcamentos, setOrcamentos, orcamentosLoaded] = useSharedState("df_orcamentos", seedOrcamentos);
 
   const [sessionUserId, setSessionUserId] = useState(undefined); // undefined = ainda carregando
   useEffect(() => {
@@ -1195,7 +1582,7 @@ export default function DieselFilmsOS() {
     })();
   }, []);
 
-  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && sessionUserId !== undefined;
+  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && sessionUserId !== undefined;
 
   const [showRetry, setShowRetry] = useState(false);
   useEffect(() => {
@@ -1249,6 +1636,7 @@ export default function DieselFilmsOS() {
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
+      {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} />}
       {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} />}
