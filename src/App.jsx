@@ -153,13 +153,49 @@ const seedLeads = () => ([
 
 const seedOrcamentos = () => ([]);
 
-const CATALOGO_ITENS = [
-  { descricao: "Essencial Cinema", detalhes: "2 teasers (30-60s) + filme do casamento (3-4min) + drone incluso + entrega personalizada", valor: 3500 },
-  { descricao: "Making of da Noiva", detalhes: "", valor: 560 },
-  { descricao: "Making of do Noivo", detalhes: "", valor: 460 },
-  { descricao: "Curta (10-30min)", detalhes: "", valor: 1090 },
-  { descricao: "Pré-Wedding", detalhes: "", valor: 1200 },
-  { descricao: "Entrega Flash", detalhes: "Entrega prioritária", valor: 1200 },
+const CATALOGO_CATEGORIAS = [
+  {
+    categoria: "Cobertura e filmagem",
+    itens: [
+      "Documentário Completo (dia inteiro)",
+      "Segundo Operador de Câmera",
+      "Drone / Imagens Aéreas",
+      "Hora Extra de Cobertura",
+      "Cobertura da Cerimônia Religiosa + Civil (separadas)",
+      "Making of Completo (noiva + noivo juntos, \"first look\")",
+      "Live Streaming da Cerimônia (para quem não pode ir)",
+    ],
+  },
+  {
+    categoria: "Entregas e formatos",
+    itens: [
+      "Teaser / Trailer (1-3min para redes sociais)",
+      "Filme Completo (cerimônia + festa na íntegra)",
+      "Aftermovie (estilo clipe de festa)",
+      "Entrega em Pen Drive Personalizado",
+      "Entrega em Blu-ray/DVD com case",
+      "Fotos Still (frames extraídos do vídeo)",
+    ],
+  },
+  {
+    categoria: "Extras e experiências",
+    itens: [
+      "Save the Date em Vídeo",
+      "Ensaio Pré-Wedding em outra locação/viagem",
+      "Depoimento dos Noivos (vídeo emocional pré-casamento)",
+      "Bastidores (behind the scenes do dia)",
+      "Filme Curto para os Pais/Padrinhos",
+      "Iluminação Extra para festa à noite",
+    ],
+  },
+  {
+    categoria: "Logística",
+    itens: [
+      "Taxa de Deslocamento / Destination Wedding",
+      "Diária de Assistente/Produção",
+      "Backup de Equipamento (segurança extra)",
+    ],
+  },
 ];
 
 const seedEquipe = () => ([
@@ -1122,6 +1158,7 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
   const [saving, setSaving] = useState(false);
   const [linkWarning, setLinkWarning] = useState("");
   const [savedLink, setSavedLink] = useState("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   const itemTotal = (it) => (Number(it.valor) || 0) * (Number(it.quantidade) || 1);
   const orcTotal = (o) => (o.itens || []).reduce((s, it) => s + itemTotal(it), 0);
@@ -1277,14 +1314,32 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads }) {
           <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Itens do orçamento</div>
           <div className="text-sm" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(totalForm)}</div>
         </div>
-        <div className="flex gap-2 flex-wrap mb-3">
-          {CATALOGO_ITENS.map((c) => (
-            <button key={c.descricao} type="button" onClick={() => addItem(c)}
-              className="px-2.5 py-1 rounded-md text-xs"
-              style={{ background: C.surface, color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-              + {c.descricao}
-            </button>
-          ))}
+        <div className="mb-3">
+          <button type="button" onClick={() => setCatalogOpen(!catalogOpen)}
+            className="px-2.5 py-1.5 rounded-md text-xs font-medium"
+            style={{ background: C.surface, color: C.gold, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+            + Adicionar do catálogo {catalogOpen ? "▲" : "▼"}
+          </button>
+          {catalogOpen && (
+            <div className="mt-2 rounded-lg p-3" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+              {CATALOGO_CATEGORIAS.map((cat) => (
+                <div key={cat.categoria} className="mb-3 last:mb-0">
+                  <div className="text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+                    {cat.categoria}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {cat.itens.map((descricao) => (
+                      <button key={descricao} type="button" onClick={() => addItem({ descricao })}
+                        className="px-2.5 py-1 rounded-md text-xs"
+                        style={{ background: C.surface, color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                        + {descricao}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {form.itens.map((item, idx) => (
           <ItemRow key={item.id} item={item} onChange={(patch) => updateItem(idx, patch)} onRemove={() => removeItem(idx)} />
