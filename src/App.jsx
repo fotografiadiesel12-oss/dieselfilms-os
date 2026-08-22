@@ -4,7 +4,7 @@ import {
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
-  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings
+  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -13,6 +13,7 @@ import {
   seedPrecificacao, calcularValorHoraFinal, calcularItemTotal,
   calcularTotalLiquido, calcularInvestimentoTotal,
 } from "./lib/precificacao.js";
+import { listPosts, createPost, updatePost, deletePost, uploadFotoPost } from "./lib/feedApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -107,7 +108,7 @@ const seedContratos = () => ([
   { id: uid(), titulo: "Cobertura foto + vídeo", cliente: "Bruna Tartari", valor: 7600, tipo: "Casamento", status: "Rascunho" },
 ]);
 
-const ALL_MODULES = ["dashboard", "leads", "demandas", "financeiro", "orcamentos", "contratos", "clientes", "equipe"];
+const ALL_MODULES = ["feed", "dashboard", "leads", "demandas", "financeiro", "orcamentos", "contratos", "clientes", "equipe"];
 
 const ESTAGIOS = ["Novo lead", "Contato feito", "Proposta enviada", "Negociacao", "Fechado ganho", "Fechado perdido"];
 const estagioLabel = {
@@ -301,11 +302,11 @@ function IconBtn({ onClick, children, title }) {
   );
 }
 
-function PrimaryBtn({ onClick, children }) {
+function PrimaryBtn({ onClick, children, disabled }) {
   return (
-    <button onClick={onClick}
+    <button onClick={onClick} disabled={disabled}
       className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-transform active:scale-[0.98]"
-      style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+      style={{ background: C.gold, color: "#141209", fontFamily: "Inter", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>
       {children}
     </button>
   );
@@ -436,6 +437,7 @@ function Sprockets() {
 }
 
 const NAV = [
+  { id: "feed", label: "Feed", icon: Rss },
   { id: "dashboard", label: "Painel", icon: LayoutDashboard },
   { id: "leads", label: "Leads", icon: Radar },
   { id: "demandas", label: "Demandas", icon: ListChecks },
@@ -1071,6 +1073,323 @@ function ContratosModule({ contratos, setContratos }) {
           <PrimaryBtn onClick={add}><Plus size={16} />Salvar contrato</PrimaryBtn>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   FEED
+--------------------------------------------------------- */
+const POST_TIPOS = [
+  { id: "tarefa", label: "Tarefa" },
+  { id: "frase", label: "Frase" },
+  { id: "foto", label: "Foto" },
+];
+
+function highlightMentions(texto, equipe) {
+  const nomes = equipe.map((u) => u.nome).sort((a, b) => b.length - a.length);
+  if (nomes.length === 0) return texto;
+  const escaped = nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`@(${escaped.join("|")})`, "g");
+  const parts = texto.split(regex);
+  return parts.map((part, i) =>
+    nomes.includes(part)
+      ? <span key={i} style={{ color: C.goldBright, fontWeight: 600 }}>@{part}</span>
+      : <React.Fragment key={i}>{part}</React.Fragment>
+  );
+}
+
+function CommentBox({ equipe, onSubmit }) {
+  const [texto, setTexto] = useState("");
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const inputRef = React.useRef(null);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setTexto(val);
+    const cursor = e.target.selectionStart;
+    const upToCursor = val.slice(0, cursor);
+    const atIdx = upToCursor.lastIndexOf("@");
+    if (atIdx === -1 || /\s/.test(upToCursor.slice(atIdx + 1))) {
+      setMentionQuery(null);
+    } else {
+      setMentionQuery(upToCursor.slice(atIdx + 1));
+    }
+  };
+
+  const pickMention = (nome) => {
+    const cursor = inputRef.current?.selectionStart ?? texto.length;
+    const upToCursor = texto.slice(0, cursor);
+    const atIdx = upToCursor.lastIndexOf("@");
+    const before = texto.slice(0, atIdx);
+    const after = texto.slice(cursor);
+    const novo = `${before}@${nome} ${after}`;
+    setTexto(novo);
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
+  const submit = () => {
+    if (!texto.trim()) return;
+    onSubmit(texto.trim());
+    setTexto("");
+    setMentionQuery(null);
+  };
+
+  const sugestoes = mentionQuery === null ? [] :
+    equipe.filter((u) => u.nome.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
+
+  return (
+    <div className="relative flex gap-2 mt-2">
+      <input ref={inputRef} style={{ ...inputStyle, flex: 1 }} placeholder="Escreva um comentário... use @ para marcar alguém"
+        value={texto} onChange={handleChange}
+        onKeyDown={(e) => e.key === "Enter" && submit()} />
+      <button onClick={submit} className="px-3 rounded-lg" style={{ background: C.gold, color: "#141209" }}>
+        <Send size={15} />
+      </button>
+      {sugestoes.length > 0 && (
+        <div className="absolute z-10 rounded-lg overflow-hidden" style={{ top: "100%", left: 0, marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, minWidth: 200 }}>
+          {sugestoes.map((u) => (
+            <button key={u.id} type="button" onClick={() => pickMention(u.nome)}
+              className="block w-full text-left px-3 py-2 text-sm"
+              style={{ color: C.text, fontFamily: "Inter" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+              {u.nome}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, onDelete }) {
+  const [showComments, setShowComments] = useState(false);
+  const reagiuVisto = post.reacoes.visto.includes(currentUser.id);
+  const reagiuTrabalhando = post.reacoes.trabalhando.includes(currentUser.id);
+  const podeExcluir = post.autorId === currentUser.id || currentUser.papel === "Admin";
+  const iniciais = post.autorNome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  const data = new Date(post.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="rounded-xl p-5 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+            style={{ background: C.goldDim, color: "#141209", fontFamily: "Inter" }}>
+            {iniciais}
+          </div>
+          <div>
+            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{post.autorNome}</div>
+            <div className="text-xs" style={{ color: C.textFaint }}>{data}</div>
+          </div>
+        </div>
+        {podeExcluir && <IconBtn onClick={() => onDelete(post.id)} title="Excluir"><Trash2 size={14} /></IconBtn>}
+      </div>
+
+      {post.tipo === "tarefa" && (
+        <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{post.texto}</div>
+      )}
+      {post.tipo === "frase" && (
+        <div className="text-center py-3">
+          <div className="text-xl" style={{ color: C.goldBright, fontFamily: "Fraunces", fontStyle: "italic" }}>“{post.texto}”</div>
+          {post.autoria && <div className="text-xs mt-2" style={{ color: C.textFaint }}>— {post.autoria}</div>}
+        </div>
+      )}
+      {post.tipo === "foto" && (
+        <div>
+          <img src={post.fotoUrl} alt={post.descricao || ""} className="w-full rounded-lg mb-2" style={{ maxHeight: 420, objectFit: "cover" }} />
+          {post.descricao && <div className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>{post.descricao}</div>}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mt-4">
+        <button onClick={() => onToggleReacao(post, "visto")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
+          style={{ background: reagiuVisto ? "rgba(201,162,39,0.14)" : C.bgSoft, color: reagiuVisto ? C.goldBright : C.textDim, fontFamily: "Inter" }}>
+          👁️ {post.reacoes.visto.length}
+        </button>
+        <button onClick={() => onToggleReacao(post, "trabalhando")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
+          style={{ background: reagiuTrabalhando ? "rgba(201,162,39,0.14)" : C.bgSoft, color: reagiuTrabalhando ? C.goldBright : C.textDim, fontFamily: "Inter" }}>
+          🧑‍💻 {post.reacoes.trabalhando.length}
+        </button>
+        <button onClick={() => setShowComments(!showComments)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ml-auto"
+          style={{ background: "transparent", color: C.textFaint, fontFamily: "Inter" }}>
+          <MessageCircle size={15} />{post.comentarios.length} comentário{post.comentarios.length === 1 ? "" : "s"}
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+          <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
+            {post.comentarios.map((c) => (
+              <div key={c.id} className="text-xs rounded-lg p-2.5" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+                <div style={{ color: C.textFaint, marginBottom: 2 }}>{c.autorNome}</div>
+                <div style={{ color: C.text, fontFamily: "Inter" }}>{highlightMentions(c.texto, equipe)}</div>
+              </div>
+            ))}
+            {post.comentarios.length === 0 && <div className="text-xs" style={{ color: C.textFaint }}>Nenhum comentário ainda.</div>}
+          </div>
+          <CommentBox equipe={equipe} onSubmit={(texto) => onAddComentario(post, texto)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeedModule({ equipe, currentUser }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [tipo, setTipo] = useState("tarefa");
+  const [texto, setTexto] = useState("");
+  const [autoria, setAutoria] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [fotoUrl, setFotoUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [posting, setPosting] = useState(false);
+
+  const fetchPosts = () => {
+    listPosts()
+      .then((data) => { setPosts(data); setError(""); })
+      .catch(() => setError("Não deu pra carregar o feed agora. Confirme se o backend está configurado na Vercel."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchPosts();
+    const interval = setInterval(fetchPosts, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const resetComposer = () => {
+    setTexto(""); setAutoria(""); setDescricao(""); setFotoUrl("");
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadFotoPost(file);
+      setFotoUrl(url);
+    } catch {
+      setError("Não deu pra enviar a foto. Confirme se o Vercel Blob está conectado.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const podePostar =
+    (tipo === "tarefa" && texto.trim()) ||
+    (tipo === "frase" && texto.trim()) ||
+    (tipo === "foto" && fotoUrl && !uploading);
+
+  const publicar = async () => {
+    if (!podePostar) return;
+    setPosting(true);
+    const payload = {
+      tipo, autorId: currentUser.id, autorNome: currentUser.nome,
+      texto: tipo === "foto" ? "" : texto.trim(),
+      autoria: tipo === "frase" ? autoria.trim() : "",
+      fotoUrl: tipo === "foto" ? fotoUrl : "",
+      descricao: tipo === "foto" ? descricao.trim() : "",
+    };
+    try {
+      const post = await createPost(payload);
+      setPosts([post, ...posts]);
+      resetComposer();
+      setError("");
+    } catch {
+      setError("Não deu pra publicar agora. Confirme se o backend está configurado na Vercel.");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const toggleReacao = async (post, tipoReacao) => {
+    const jaReagiu = post.reacoes[tipoReacao].includes(currentUser.id);
+    const novaLista = jaReagiu
+      ? post.reacoes[tipoReacao].filter((id) => id !== currentUser.id)
+      : [...post.reacoes[tipoReacao], currentUser.id];
+    const novasReacoes = { ...post.reacoes, [tipoReacao]: novaLista };
+    setPosts(posts.map((p) => (p.id === post.id ? { ...p, reacoes: novasReacoes } : p)));
+    updatePost(post.id, { reacoes: novasReacoes }).catch(() => {});
+  };
+
+  const addComentario = async (post, texto) => {
+    const comentario = { id: uid(), autorId: currentUser.id, autorNome: currentUser.nome, texto, criadoEm: new Date().toISOString() };
+    const novaLista = [...post.comentarios, comentario];
+    setPosts(posts.map((p) => (p.id === post.id ? { ...p, comentarios: novaLista } : p)));
+    updatePost(post.id, { comentarios: novaLista }).catch(() => {});
+  };
+
+  const remove = (id) => {
+    setPosts(posts.filter((p) => p.id !== id));
+    deletePost(id).catch(() => {});
+  };
+
+  return (
+    <div>
+      <ModuleHeader title="Feed" sub="O que está rolando na equipe hoje" />
+
+      <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div className="flex gap-2 mb-3">
+          {POST_TIPOS.map((t) => (
+            <button key={t.id} onClick={() => setTipo(t.id)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{
+                background: tipo === t.id ? C.gold : "transparent",
+                color: tipo === t.id ? "#141209" : C.textDim,
+                border: `1px solid ${tipo === t.id ? C.gold : C.border}`, fontFamily: "Inter",
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {(tipo === "tarefa" || tipo === "frase") && (
+          <textarea style={{ ...inputStyle, minHeight: 60 }}
+            placeholder={tipo === "tarefa" ? "O que você vai fazer hoje?" : "Escreva a frase..."}
+            value={texto} onChange={(e) => setTexto(e.target.value)} />
+        )}
+        {tipo === "frase" && (
+          <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Autoria (opcional)"
+            value={autoria} onChange={(e) => setAutoria(e.target.value)} />
+        )}
+        {tipo === "foto" && (
+          <div>
+            <input type="file" accept="image/*" onChange={handleFile}
+              className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }} />
+            {uploading && <div className="text-xs mt-1" style={{ color: C.textFaint }}>Enviando...</div>}
+            {fotoUrl && !uploading && (
+              <img src={fotoUrl} alt="" className="rounded-lg mt-2" style={{ maxHeight: 180 }} />
+            )}
+            <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Legenda (opcional)"
+              value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+          </div>
+        )}
+
+        <div className="flex justify-end mt-3">
+          <PrimaryBtn onClick={publicar} disabled={!podePostar || posting}>
+            <Plus size={16} />{posting ? "Publicando..." : "Postar"}
+          </PrimaryBtn>
+        </div>
+      </div>
+
+      {error && <div className="text-xs mb-4" style={{ color: C.amber, fontFamily: "Inter" }}>{error}</div>}
+
+      {loading && <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Carregando feed...</div>}
+      {!loading && posts.length === 0 && !error && (
+        <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Nenhum post ainda. Seja o primeiro a postar!</div>
+      )}
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
+          onToggleReacao={toggleReacao} onAddComentario={addComentario} onDelete={remove} />
+      ))}
     </div>
   );
 }
@@ -1744,7 +2063,7 @@ function EquipeModule({ equipe, setEquipe, currentUserId }) {
    APP
 --------------------------------------------------------- */
 export default function DieselFilmsOS() {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState("feed");
   const isMobile = useIsMobile();
   const [clientes, setClientes, clientesLoaded] = useSharedState("df_clientes", seedClientes);
   const [leads, setLeads, leadsLoaded] = useSharedState("df_leads", seedLeads);
@@ -1817,6 +2136,7 @@ export default function DieselFilmsOS() {
 
   const modules = (
     <>
+      {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
       {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} isMobile={isMobile} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} />}
