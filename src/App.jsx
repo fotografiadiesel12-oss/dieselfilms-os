@@ -1430,7 +1430,7 @@ const baixarContratoDoc = (titulo, html) => {
   URL.revokeObjectURL(url);
 };
 
-function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro }) {
+function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyContratoForm());
@@ -1442,7 +1442,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   const totalMes = contratos.reduce((s, c) => s + Number(c.valor), 0);
 
   const resetForm = () => { setForm(emptyContratoForm()); setEditingId(null); };
-  const startNew = () => { resetForm(); setDocTouched(false); setPreviewVisible(true); setOpen(true); };
+  const startNew = () => { resetForm(); setDocTouched(false); setPreviewVisible(!isMobile); setOpen(true); };
   const startEdit = (c) => {
     const n = Math.max(1, Number(c.numParcelas) || 1);
     setForm({
@@ -1456,7 +1456,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     });
     setEditingId(c.id);
     setDocTouched(true);
-    setPreviewVisible(true);
+    setPreviewVisible(!isMobile);
     setOpen(true);
   };
 
@@ -1578,8 +1578,8 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
               </div>
             </div>
 
-            <div className="flex-1 flex gap-0 min-h-0">
-              <div className="thin-scroll overflow-y-auto px-6 py-5" style={{ width: previewVisible ? 420 : "100%", flexShrink: 0 }}>
+            <div className={isMobile ? "flex-1 flex flex-col gap-0 min-h-0 overflow-y-auto thin-scroll" : "flex-1 flex gap-0 min-h-0"}>
+              <div className={isMobile ? "px-6 py-5" : "thin-scroll overflow-y-auto px-6 py-5"} style={{ width: isMobile ? "100%" : (previewVisible ? 420 : "100%"), flexShrink: 0 }}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Modelo de contrato">
                     <select style={inputStyle} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
@@ -1669,7 +1669,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
               </div>
 
               {previewVisible && (
-                <div className="flex-1 thin-scroll overflow-y-auto px-6 py-5" style={{ borderLeft: `1px solid ${C.borderSoft}` }}>
+                <div className={isMobile ? "px-6 py-5" : "flex-1 thin-scroll overflow-y-auto px-6 py-5"} style={{ borderLeft: isMobile ? "none" : `1px solid ${C.borderSoft}`, borderTop: isMobile ? `1px solid ${C.borderSoft}` : "none" }}>
                   <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>Pré-visualização · clique no texto para editar</div>
                   <div ref={docRef} contentEditable suppressContentEditableWarning
                     onInput={() => setDocTouched(true)}
@@ -1679,7 +1679,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 flex-wrap" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
               <button onClick={baixar} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
                 style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
                 <Download size={15} />Baixar
@@ -3125,7 +3125,7 @@ export default function DieselFilmsOS() {
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
-      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} />}
+      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} />}
       {allowedNav.length === 0 && (
