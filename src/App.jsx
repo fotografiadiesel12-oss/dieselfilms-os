@@ -216,31 +216,39 @@ const seedEquipe = () => ([
 /* ---------------------------------------------------------
    PERSISTENCE — dados compartilhados entre a equipe
 --------------------------------------------------------- */
+const SHARED_POLL_MS = 15000;
+
 function useSharedState(key, seedFn) {
   const [value, setValue] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const skipNextWrite = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const fetchValue = async (isPoll) => {
       try {
         const res = await window.storage.get(key, true);
-        if (!cancelled) {
-          setValue(res ? JSON.parse(res.value) : seedFn());
-          setLoaded(true);
-        }
+        if (cancelled) return;
+        if (isPoll) skipNextWrite.current = true;
+        setValue(res ? JSON.parse(res.value) : seedFn());
+        setLoaded(true);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !isPoll) {
           setValue(seedFn());
           setLoaded(true);
         }
       }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    fetchValue(false);
+    const interval = setInterval(() => fetchValue(true), SHARED_POLL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [key]);
 
   useEffect(() => {
     if (!loaded) return;
+    if (skipNextWrite.current) { skipNextWrite.current = false; return; }
     window.storage.set(key, JSON.stringify(value), true).catch(() => {});
   }, [value, loaded, key]);
 

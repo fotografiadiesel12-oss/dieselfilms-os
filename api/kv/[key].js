@@ -1,0 +1,35 @@
+import { kv } from "@vercel/kv";
+
+// Backend generico de chave/valor usado pelo window.storage (storagePolyfill.js)
+// para os dados compartilhados do app (clientes, demandas, financeiro, contratos,
+// equipe, orcamentos, precificacao) -- mesmo Upstash/KV ja conectado pro Feed.
+
+export default async function handler(req, res) {
+  const { key } = req.query;
+  if (!key) {
+    res.status(400).json({ error: "key obrigatória." });
+    return;
+  }
+  const fullKey = `df_shared:${key}`;
+
+  if (req.method === "GET") {
+    const value = await kv.get(fullKey);
+    res.status(200).json({ value: value ?? null });
+    return;
+  }
+
+  if (req.method === "PUT" || req.method === "POST") {
+    const { value } = req.body || {};
+    await kv.set(fullKey, value);
+    res.status(200).json({ value });
+    return;
+  }
+
+  if (req.method === "DELETE") {
+    await kv.del(fullKey);
+    res.status(200).json({ deleted: true });
+    return;
+  }
+
+  res.status(405).json({ error: "Método não permitido." });
+}
