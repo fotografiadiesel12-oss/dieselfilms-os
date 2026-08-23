@@ -1556,12 +1556,27 @@ function CommentBox({ equipe, onSubmit }) {
   );
 }
 
+function ExpandableText({ text, style, limit = 220 }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  if (text.length <= limit) return <div style={style}>{text}</div>;
+  return (
+    <div style={style}>
+      {expanded ? text : `${text.slice(0, limit).trimEnd()}… `}
+      <button onClick={() => setExpanded(!expanded)} style={{ color: C.goldBright, fontWeight: 600 }}>
+        {expanded ? "ver menos" : "...mais"}
+      </button>
+    </div>
+  );
+}
+
 function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, onDelete }) {
   const [showComments, setShowComments] = useState(false);
   const reagiuVisto = post.reacoes.visto.includes(currentUser.id);
   const reagiuTrabalhando = post.reacoes.trabalhando.includes(currentUser.id);
   const podeExcluir = post.autorId === currentUser.id || CARGOS_GESTAO.includes(currentUser.papel);
   const iniciais = post.autorNome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  const autorPapel = equipe.find((u) => u.id === post.autorId)?.papel;
   const data = new Date(post.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   return (
@@ -1573,7 +1588,9 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
             {iniciais}
           </div>
           <div>
-            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{post.autorNome}</div>
+            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>
+              {post.autorNome}{autorPapel && <span style={{ color: C.textFaint, fontWeight: 400 }}> · {autorPapel}</span>}
+            </div>
             <div className="text-xs" style={{ color: C.textFaint }}>{data}</div>
           </div>
         </div>
@@ -1581,7 +1598,7 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
       </div>
 
       {post.tipo === "tarefa" && (
-        <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{post.texto}</div>
+        <ExpandableText text={post.texto} style={{ fontSize: 14, color: C.text, fontFamily: "Inter", lineHeight: 1.5 }} />
       )}
       {post.tipo === "frase" && (
         <div className="text-center py-3">
@@ -1592,7 +1609,7 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
       {post.tipo === "foto" && (
         <div>
           <img src={post.fotoUrl} alt={post.descricao || ""} className="w-full rounded-lg mb-2" style={{ maxHeight: 420, objectFit: "cover" }} />
-          {post.descricao && <div className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>{post.descricao}</div>}
+          {post.descricao && <ExpandableText text={post.descricao} style={{ fontSize: 14, color: C.textDim, fontFamily: "Inter", lineHeight: 1.5 }} />}
         </div>
       )}
 
@@ -1632,7 +1649,38 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
   );
 }
 
-function FeedModule({ equipe, currentUser }) {
+function FeedProfileCard({ currentUser, posts, onEditProfile }) {
+  const meusPosts = posts.filter((p) => p.autorId === currentUser.id);
+  const reacoesRecebidas = meusPosts.reduce((s, p) => s + p.reacoes.visto.length + p.reacoes.trabalhando.length, 0);
+  const iniciais = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+
+  return (
+    <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, height: "fit-content" }}>
+      <div className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-semibold overflow-hidden mb-3"
+        style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+        {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+      </div>
+      <div className="text-base font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{currentUser.nome}</div>
+      <div className="text-xs mt-1" style={{ color: C.textDim, fontFamily: "Inter" }}>{currentUser.papel} · DieselFilms</div>
+      <button onClick={onEditProfile} className="mt-3 px-3 py-1.5 rounded-full text-xs"
+        style={{ border: `1px dashed ${C.border}`, color: C.textDim, fontFamily: "Inter" }}>
+        + Editar perfil
+      </button>
+      <div className="mt-4 pt-4 flex flex-col gap-2.5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+        <div className="flex items-center justify-between text-xs" style={{ fontFamily: "Inter" }}>
+          <span style={{ color: C.textDim }}>Publicações</span>
+          <span style={{ color: C.goldBright, fontWeight: 600 }}>{meusPosts.length}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs" style={{ fontFamily: "Inter" }}>
+          <span style={{ color: C.textDim }}>Reações recebidas</span>
+          <span style={{ color: C.goldBright, fontWeight: 600 }}>{reacoesRecebidas}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1643,6 +1691,11 @@ function FeedModule({ equipe, currentUser }) {
   const [fotoUrl, setFotoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const salvarPerfil = async (dados) => {
+    setEquipe(equipe.map((m) => (m.id === currentUser.id ? { ...m, ...dados } : m)));
+  };
 
   const fetchPosts = () => {
     listPosts()
@@ -1738,6 +1791,10 @@ function FeedModule({ equipe, currentUser }) {
     <div>
       <ModuleHeader title="Feed" sub="O que está rolando na equipe hoje" />
 
+      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", alignItems: "start" }}>
+        <FeedProfileCard currentUser={currentUser} posts={posts} onEditProfile={() => setProfileOpen(true)} />
+
+        <div>
       <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <div className="flex gap-2 mb-3">
           {POST_TIPOS.map((t) => (
@@ -1792,6 +1849,10 @@ function FeedModule({ equipe, currentUser }) {
         <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
           onToggleReacao={toggleReacao} onAddComentario={addComentario} onDelete={remove} />
       ))}
+        </div>
+      </div>
+
+      {profileOpen && <ProfileModal user={currentUser} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }
@@ -2795,7 +2856,7 @@ export default function DieselFilmsOS() {
 
   const modules = (
     <>
-      {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
+      {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} setEquipe={setEquipe} currentUser={currentUser} isMobile={isMobile} />}
       {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} isMobile={isMobile} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
