@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   const raw = await kv.get(EQUIPE_KEY);
-  const lista = raw ? JSON.parse(raw) : [];
+  const lista = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw) : [];
   const user = lista.find((u) => (u.email || "").toLowerCase() === String(email).trim().toLowerCase());
 
   if (!user) {

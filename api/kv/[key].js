@@ -19,8 +19,13 @@ export default async function handler(req, res) {
   const fullKey = `df_shared:${key}`;
 
   if (req.method === "GET") {
-    const value = await kv.get(fullKey);
-    res.status(200).json({ value: value ?? null });
+    const raw = await kv.get(fullKey);
+    // o cliente sempre manda uma string ja serializada (JSON.stringify) pra guardar,
+    // mas o @vercel/kv reconhece automaticamente que essa string "parece JSON" e
+    // devolve ela ja desserializada em vez da string original -- normaliza aqui
+    // pra sempre devolver string, que é o que window.storage/useSharedState espera.
+    const value = raw === null || raw === undefined ? null : (typeof raw === "string" ? raw : JSON.stringify(raw));
+    res.status(200).json({ value });
     return;
   }
 
