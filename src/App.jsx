@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   LayoutDashboard, ListChecks, Wallet, FileText, Users, ShieldCheck,
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
-  Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown
+  Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
+  Download
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -593,7 +594,8 @@ function SidebarProfileCard({ currentUser, equipe, setEquipe }) {
   const reacoesRecebidas = meusPosts.reduce((s, p) => s + p.reacoes.visto.length + p.reacoes.trabalhando.length, 0);
 
   return (
-    <div className="px-5 py-4 flex flex-col items-center text-center" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+    <div className="mx-4 mt-5 mb-2 p-4 rounded-xl flex flex-col items-center text-center"
+      style={{ border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)" }}>
       <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden mb-2"
         style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
         {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
@@ -627,10 +629,6 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
-      <div className="px-5 pt-5 pb-3 flex flex-col items-center text-center">
-        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 92, height: "auto" }} />
-        <div className="text-[9px] mt-1 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
-      </div>
 
       <SidebarProfileCard currentUser={user} equipe={equipe} setEquipe={setEquipe} />
 
@@ -654,8 +652,9 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
         })}
       </nav>
 
-      <div className="pl-8 pr-5 py-5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <button onClick={onLogout} className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
+      <div className="px-5 py-4 flex flex-col items-center text-center" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 44, height: "auto", opacity: 0.6 }} />
+        <button onClick={onLogout} className="mt-2 text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
       </div>
     </div>
   );
@@ -1344,45 +1343,120 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile }
 /* ---------------------------------------------------------
    CONTRATOS
 --------------------------------------------------------- */
-const emptyContratoForm = () => ({ titulo: "", cliente: "", documento: "", tipo: "Casamento", escopo: "", prazo: "", valor: "", formaPagamento: "Pix", status: "Rascunho" });
+function SectionLabel({ children }) {
+  return (
+    <div className="text-[11px] uppercase tracking-wide mt-5 mb-2 pb-1.5" style={{ color: C.textFaint, fontFamily: "Inter", fontWeight: 600, borderBottom: `1px solid ${C.borderSoft}` }}>
+      {children}
+    </div>
+  );
+}
 
-const buildContractText = (form) => ([
-  "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS",
-  "",
-  `CONTRATANTE: ${form.cliente || "[nome do cliente]"}${form.documento ? `, portador(a) do CPF/CNPJ nº ${form.documento}` : ""}.`,
-  "CONTRATADA: DieselFilms Produções Audiovisuais.",
-  "",
-  "CLÁUSULA 1ª — DO OBJETO",
-  `O presente contrato tem como objeto a prestação de serviços de ${(form.tipo || "").toLowerCase()} pela CONTRATADA à CONTRATANTE, compreendendo: ${form.escopo || "[descreva o escopo do serviço]"}.`,
-  "",
-  "CLÁUSULA 2ª — DO PRAZO",
-  `A entrega dos materiais contratados ocorrerá em até ${form.prazo || "[prazo a combinar]"}, contados a partir da assinatura deste contrato ou da data do evento, o que for aplicável.`,
-  "",
-  "CLÁUSULA 3ª — DO VALOR E FORMA DE PAGAMENTO",
-  `Pelos serviços descritos, a CONTRATANTE pagará à CONTRATADA o valor total de ${brl(Number(form.valor) || 0)}, via ${form.formaPagamento || "[forma de pagamento]"}.`,
-  "",
-  "CLÁUSULA 4ª — DAS DISPOSIÇÕES GERAIS",
-  "Este documento é um rascunho gerado automaticamente pelo DieselFilms OS e deve ser revisado antes de qualquer assinatura formal.",
-  "",
-  "____________________________",
-  "CONTRATANTE",
-  "",
-  "____________________________",
-  "CONTRATADA — DieselFilms",
-].join("\n"));
+const defaultMomento = (i, total) => {
+  if (total <= 1) return "à vista";
+  if (i === 0) return "no início dos serviços";
+  if (i === total - 1) return "na conclusão da entrega";
+  return `${i + 1}ª parcela`;
+};
 
-function ContratosModule({ contratos, setContratos, clientes = [] }) {
+const emptyContratoForm = () => ({
+  titulo: "", cliente: "", tipoDocumento: "CNPJ", documento: "",
+  representante: "", cpfRepresentante: "", endereco: "",
+  tipo: "Casamento", escopo: "", prazo: "",
+  valor: "", formaPagamento: "Pix", numParcelas: 1, momentos: ["à vista"],
+  vigenciaMeses: "", foro: "",
+  status: "Rascunho",
+});
+
+const buildContractText = (form) => {
+  const valorTotal = Number(form.valor) || 0;
+  const n = Math.max(1, Number(form.numParcelas) || 1);
+  const valorParcela = valorTotal / n;
+  const momentos = form.momentos && form.momentos.length === n
+    ? form.momentos
+    : Array.from({ length: n }, (_, i) => defaultMomento(i, n));
+  const linhasParcelas = n === 1
+    ? [`- Pagamento único de ${brl(valorTotal)}, ${momentos[0] || "à vista"}.`]
+    : momentos.map((m, i) => `- Parcela ${i + 1}: ${brl(valorParcela)} — ${m || "a combinar"}.`);
+
+  return [
+    "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS",
+    "",
+    `CONTRATANTE: ${form.cliente || "[nome do cliente]"}${form.documento ? `, inscrito(a) no ${form.tipoDocumento || "CPF/CNPJ"} nº ${form.documento}` : ""}${form.endereco ? `, residente e domiciliado(a) em ${form.endereco}` : ""}.`,
+    form.representante ? `Representante legal: ${form.representante}${form.cpfRepresentante ? ` (CPF nº ${form.cpfRepresentante})` : ""}.` : "",
+    "CONTRATADA: DieselFilms Produções Audiovisuais.",
+    "",
+    "CLÁUSULA 1ª — DO OBJETO",
+    `O presente contrato tem como objeto a prestação de serviços de ${(form.tipo || "").toLowerCase()} pela CONTRATADA à CONTRATANTE, compreendendo: ${form.escopo || "[descreva o escopo do serviço]"}.`,
+    "",
+    "CLÁUSULA 2ª — DO PRAZO",
+    `A entrega dos materiais contratados ocorrerá em até ${form.prazo || "[prazo a combinar]"}, contados a partir da assinatura deste contrato ou da data do evento, o que for aplicável.`,
+    "",
+    "CLÁUSULA 3ª — DO VALOR E FORMA DE PAGAMENTO",
+    `Pelos serviços descritos, a CONTRATANTE pagará à CONTRATADA o valor total de ${brl(valorTotal)}, via ${form.formaPagamento || "[forma de pagamento]"}, da seguinte forma:`,
+    ...linhasParcelas,
+    "",
+    "CLÁUSULA 4ª — DA VIGÊNCIA E DO FORO",
+    `O presente contrato vigora por ${form.vigenciaMeses || "[vigência]"} meses a partir de sua assinatura. Fica eleito o foro da comarca de ${form.foro || "[cidade]"} para dirimir quaisquer controvérsias oriundas deste instrumento.`,
+    "",
+    "CLÁUSULA 5ª — DAS DISPOSIÇÕES GERAIS",
+    "Este documento é um rascunho gerado automaticamente pelo DieselFilms OS e deve ser revisado antes de qualquer assinatura formal.",
+    "",
+    "____________________________",
+    "CONTRATANTE",
+    "",
+    "____________________________",
+    "CONTRATADA — DieselFilms",
+  ].join("\n");
+};
+
+const buildContractHtml = (form) => buildContractText(form).split("\n").map((line) => {
+  if (!line.trim()) return `<p style="margin:0 0 10px">&nbsp;</p>`;
+  if (line === "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS") return `<p style="font-weight:700;font-size:15px;margin:0 0 14px">${line}</p>`;
+  if (/^CLÁUSULA/.test(line)) return `<p style="font-weight:700;margin:14px 0 6px">${line}</p>`;
+  if (line.startsWith("- ")) return `<p style="margin:0 0 4px 16px">${line}</p>`;
+  return `<p style="margin:0 0 4px">${line}</p>`;
+}).join("");
+
+const baixarContratoDoc = (titulo, html) => {
+  const conteudo = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body style="font-family:Calibri,Arial,sans-serif;font-size:13px;color:#1a1a1a;">${html}</body></html>`;
+  const blob = new Blob([conteudo], { type: "application/msword" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(titulo || "contrato").trim().replace(/[^\w\-]+/g, "_") || "contrato"}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyContratoForm());
   const [copiedId, setCopiedId] = useState(null);
+  const [docTouched, setDocTouched] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(true);
+  const docRef = useRef(null);
+  const initRef = useRef(null);
   const totalMes = contratos.reduce((s, c) => s + Number(c.valor), 0);
 
   const resetForm = () => { setForm(emptyContratoForm()); setEditingId(null); };
-  const startNew = () => { resetForm(); setOpen(true); };
+  const startNew = () => { resetForm(); setDocTouched(false); setPreviewVisible(true); setOpen(true); };
   const startEdit = (c) => {
-    setForm({ titulo: c.titulo, cliente: c.cliente, documento: c.documento || "", tipo: c.tipo, escopo: c.escopo || "", prazo: c.prazo || "", valor: String(c.valor), formaPagamento: c.formaPagamento || "Pix", status: c.status });
+    const n = Math.max(1, Number(c.numParcelas) || 1);
+    setForm({
+      titulo: c.titulo, cliente: c.cliente, tipoDocumento: c.tipoDocumento || "CNPJ", documento: c.documento || "",
+      representante: c.representante || "", cpfRepresentante: c.cpfRepresentante || "", endereco: c.endereco || "",
+      tipo: c.tipo, escopo: c.escopo || "", prazo: c.prazo || "",
+      valor: String(c.valor), formaPagamento: c.formaPagamento || "Pix",
+      numParcelas: n, momentos: (c.momentos && c.momentos.length === n) ? c.momentos : Array.from({ length: n }, (_, i) => defaultMomento(i, n)),
+      vigenciaMeses: c.vigenciaMeses || "", foro: c.foro || "",
+      status: c.status,
+    });
     setEditingId(c.id);
+    setDocTouched(true);
+    setPreviewVisible(true);
     setOpen(true);
   };
 
@@ -1391,23 +1465,71 @@ function ContratosModule({ contratos, setContratos, clientes = [] }) {
     setForm((f) => ({ ...f, cliente: v, documento: !f.documento && match?.documento ? match.documento : f.documento }));
   };
 
-  const save = () => {
-    if (!form.titulo.trim()) return;
-    const payload = { ...form, valor: Number(form.valor) || 0 };
-    if (editingId) {
-      setContratos(contratos.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
-    } else {
-      setContratos([{ id: uid(), ...payload }, ...contratos]);
-    }
-    resetForm();
-    setOpen(false);
+  const alterarParcelas = (delta) => {
+    setForm((f) => {
+      const n = Math.max(1, Math.min(12, (f.numParcelas || 1) + delta));
+      const momentos = Array.from({ length: n }, (_, i) => f.momentos[i] || defaultMomento(i, n));
+      return { ...f, numParcelas: n, momentos };
+    });
   };
+  const atualizarMomento = (i, v) => setForm((f) => ({ ...f, momentos: f.momentos.map((m, idx) => (idx === i ? v : m)) }));
+
+  // injeta o conteudo inicial do documento (uma vez por abertura do modal)
+  useEffect(() => {
+    if (!open) { initRef.current = null; return; }
+    const key = editingId || "new";
+    if (initRef.current === key) return;
+    initRef.current = key;
+    const contratoAtual = editingId ? contratos.find((c) => c.id === editingId) : null;
+    const html = contratoAtual?.corpoHtml || buildContractHtml(form);
+    requestAnimationFrame(() => { if (docRef.current) docRef.current.innerHTML = html; });
+  }, [open, editingId]);
+
+  // mantem a previa sincronizada com os campos ate o usuario editar o texto na mao
+  useEffect(() => {
+    if (!open || docTouched || !docRef.current) return;
+    docRef.current.innerHTML = buildContractHtml(form);
+  }, [form, open, docTouched]);
+
+  const regenerarPrevia = () => {
+    setDocTouched(false);
+    if (docRef.current) docRef.current.innerHTML = buildContractHtml(form);
+  };
+
   const remove = (id) => setContratos(contratos.filter((c) => c.id !== id));
 
   const copyContract = (c) => {
     navigator.clipboard?.writeText(buildContractText(c)).catch(() => {});
     setCopiedId(c.id);
     setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
+  };
+
+  const baixar = () => {
+    const html = docRef.current ? docRef.current.innerHTML : buildContractHtml(form);
+    baixarContratoDoc(form.titulo, html);
+  };
+
+  const gerarESalvar = () => {
+    if (!form.titulo.trim()) return;
+    const corpoHtml = docRef.current ? docRef.current.innerHTML : buildContractHtml(form);
+    const id = editingId || uid();
+    const payload = { ...form, valor: Number(form.valor) || 0, corpoHtml };
+    if (editingId) {
+      setContratos(contratos.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
+    } else {
+      setContratos([{ id, ...payload }, ...contratos]);
+    }
+    if (financeiro && setFinanceiro) {
+      const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      const jaExiste = financeiro.entradas.some((e) => e.contratoId === id);
+      const base = { desc: payload.titulo, client: payload.cliente, value: payload.valor, contratoId: id };
+      const novasEntradas = jaExiste
+        ? financeiro.entradas.map((e) => (e.contratoId === id ? { ...e, ...base } : e))
+        : [{ id: uid(), date: hoje, notaEmitida: false, ...base }, ...financeiro.entradas];
+      setFinanceiro({ ...financeiro, entradas: novasEntradas });
+    }
+    resetForm();
+    setOpen(false);
   };
 
   return (
@@ -1441,53 +1563,133 @@ function ContratosModule({ contratos, setContratos, clientes = [] }) {
       </div>
 
       {open && (
-        <Modal title={editingId ? "Editar contrato" : "Novo contrato"} onClose={() => { setOpen(false); resetForm(); }} wide>
-          <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <div>
-              <Field label="Título"><input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex: Cobertura de casamento completa" /></Field>
-              <Field label="Cliente">
-                <input style={inputStyle} list="contrato-clientes" value={form.cliente} onChange={(e) => onClienteChange(e.target.value)} />
-                <datalist id="contrato-clientes">
-                  {clientes.map((cl) => <option key={cl.id} value={cl.name} />)}
-                </datalist>
-              </Field>
-              <Field label="CPF/CNPJ do cliente"><input style={inputStyle} placeholder="Ex: 00.000.000/0001-00" value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} /></Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Tipo">
-                  <select style={inputStyle} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                    {["Casamento", "Comercial", "Evento", "Ensaio"].map((t) => <option key={t}>{t}</option>)}
-                  </select>
-                </Field>
-                <Field label="Valor (R$)"><input type="number" style={inputStyle} value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></Field>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)" }}>
+          <div className="flex flex-col rounded-xl" style={{ width: "94vw", maxWidth: 1300, height: "90vh", background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+              <h3 style={{ fontFamily: "Fraunces", color: C.text }} className="text-lg font-medium">
+                {editingId ? "Editar contrato" : "Novo contrato"}
+              </h3>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setPreviewVisible(!previewVisible)}
+                  className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                  {previewVisible ? "Ocultar prévia" : "Mostrar prévia"}
+                </button>
+                <button onClick={() => { setOpen(false); resetForm(); }} style={{ color: C.textFaint }}><X size={18} /></button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Prazo de entrega"><input style={inputStyle} placeholder="Ex: 20 a 25 dias úteis" value={form.prazo} onChange={(e) => setForm({ ...form, prazo: e.target.value })} /></Field>
-                <Field label="Forma de pagamento">
-                  <select style={inputStyle} value={form.formaPagamento} onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}>
-                    {["Pix", "Cartão", "Boleto", "Transferência", "50% sinal + 50% na entrega"].map((f) => <option key={f}>{f}</option>)}
-                  </select>
-                </Field>
-              </div>
-              <Field label="Escopo / serviços incluídos">
-                <textarea style={{ ...inputStyle, height: 72, resize: "vertical" }} placeholder="Ex: filmagem da cerimônia e festa, edição de teaser e filme completo"
-                  value={form.escopo} onChange={(e) => setForm({ ...form, escopo: e.target.value })} />
-              </Field>
-              <Field label="Status">
-                <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  {["Rascunho", "Enviado", "Assinado"].map((s) => <option key={s}>{s}</option>)}
-                </select>
-              </Field>
-              <PrimaryBtn onClick={save}><Plus size={16} />{editingId ? "Salvar alterações" : "Salvar contrato"}</PrimaryBtn>
             </div>
-            <div className="rounded-lg p-4 thin-scroll" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, maxHeight: 520, overflowY: "auto" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs uppercase tracking-wide" style={{ color: C.textFaint, fontFamily: "Inter" }}>Pré-visualização</span>
-                <IconBtn onClick={() => copyContract(form)} title="Copiar texto"><Copy size={14} /></IconBtn>
+
+            <div className="flex-1 flex gap-0 min-h-0">
+              <div className="thin-scroll overflow-y-auto px-6 py-5" style={{ width: previewVisible ? 420 : "100%", flexShrink: 0 }}>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Modelo de contrato">
+                    <select style={inputStyle} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                      {["Casamento", "Comercial", "Evento", "Ensaio"].map((t) => <option key={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Cliente (autofill)">
+                    <input style={inputStyle} list="contrato-clientes" value={form.cliente} onChange={(e) => onClienteChange(e.target.value)} placeholder="Em branco / sem cliente" />
+                    <datalist id="contrato-clientes">
+                      {clientes.map((cl) => <option key={cl.id} value={cl.name} />)}
+                    </datalist>
+                  </Field>
+                </div>
+
+                <SectionLabel>Contratante</SectionLabel>
+                <Field label="Título do contrato"><input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex: Cobertura de casamento completa" /></Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Tipo de documento">
+                    <select style={inputStyle} value={form.tipoDocumento} onChange={(e) => setForm({ ...form, tipoDocumento: e.target.value })}>
+                      <option>CPF</option>
+                      <option>CNPJ</option>
+                    </select>
+                  </Field>
+                  <Field label="Número do documento"><input style={inputStyle} placeholder="Ex: 00.000.000/0001-00" value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} /></Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Representante (quem assina)"><input style={inputStyle} value={form.representante} onChange={(e) => setForm({ ...form, representante: e.target.value })} /></Field>
+                  <Field label="CPF do representante"><input style={inputStyle} value={form.cpfRepresentante} onChange={(e) => setForm({ ...form, cpfRepresentante: e.target.value })} /></Field>
+                </div>
+                <Field label="Endereço completo">
+                  <textarea style={{ ...inputStyle, height: 52, resize: "vertical" }} value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
+                </Field>
+
+                <SectionLabel>Objeto e serviços</SectionLabel>
+                <Field label="Serviços (o que será entregue)">
+                  <textarea style={{ ...inputStyle, height: 72, resize: "vertical" }} placeholder="Ex: filmagem da cerimônia e festa, edição de teaser e filme completo"
+                    value={form.escopo} onChange={(e) => setForm({ ...form, escopo: e.target.value })} />
+                </Field>
+                <Field label="Prazo de desenvolvimento"><input style={inputStyle} placeholder="Ex: 20 a 25 dias úteis" value={form.prazo} onChange={(e) => setForm({ ...form, prazo: e.target.value })} /></Field>
+
+                <SectionLabel>Honorários</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Valor total (R$)"><input type="number" style={inputStyle} value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></Field>
+                  <Field label="Forma de pagamento">
+                    <select style={inputStyle} value={form.formaPagamento} onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}>
+                      {["Pix", "Cartão", "Boleto", "Transferência"].map((f) => <option key={f}>{f}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Parcelamento">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{form.numParcelas} parcela{form.numParcelas > 1 ? "s" : ""}</span>
+                    <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                      <button type="button" onClick={() => alterarParcelas(-1)} className="w-7 h-7 flex items-center justify-center" style={{ color: C.textDim }}>−</button>
+                      <button type="button" onClick={() => alterarParcelas(1)} className="w-7 h-7 flex items-center justify-center" style={{ color: C.textDim, borderLeft: `1px solid ${C.border}` }}>+</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {form.momentos.map((m, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs whitespace-nowrap px-2 py-1.5 rounded-md" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.goldBright, fontFamily: "Inter" }}>
+                          {brl((Number(form.valor) || 0) / form.numParcelas)}
+                        </span>
+                        <input style={{ ...inputStyle, flex: 1 }} value={m} onChange={(e) => atualizarMomento(i, e.target.value)} placeholder="Ex: no início dos serviços" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[11px] mt-1.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>Os valores são divididos automaticamente a partir do valor total.</div>
+                </Field>
+
+                <SectionLabel>Vigência e foro</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Vigência (meses)"><input type="number" style={inputStyle} value={form.vigenciaMeses} onChange={(e) => setForm({ ...form, vigenciaMeses: e.target.value })} /></Field>
+                  <Field label="Foro (cidade)"><input style={inputStyle} value={form.foro} onChange={(e) => setForm({ ...form, foro: e.target.value })} /></Field>
+                </div>
+
+                <Field label="Status">
+                  <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                    {["Rascunho", "Enviado", "Assinado"].map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </Field>
+                {docTouched && (
+                  <button onClick={regenerarPrevia} className="text-xs mt-1" style={{ color: C.goldBright, fontFamily: "Inter" }}>
+                    ↻ atualizar prévia com os campos
+                  </button>
+                )}
               </div>
-              <pre className="text-xs whitespace-pre-wrap" style={{ color: C.textDim, fontFamily: "Inter", lineHeight: 1.6 }}>{buildContractText(form)}</pre>
+
+              {previewVisible && (
+                <div className="flex-1 thin-scroll overflow-y-auto px-6 py-5" style={{ borderLeft: `1px solid ${C.borderSoft}` }}>
+                  <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>Pré-visualização · clique no texto para editar</div>
+                  <div ref={docRef} contentEditable suppressContentEditableWarning
+                    onInput={() => setDocTouched(true)}
+                    className="rounded-lg p-6 text-sm outline-none"
+                    style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.text, fontFamily: "Inter", lineHeight: 1.6, minHeight: 400 }} />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+              <button onClick={baixar} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                <Download size={15} />Baixar
+              </button>
+              <PrimaryBtn onClick={gerarESalvar}>
+                <Plus size={16} />Gerar e salvar no mês
+              </PrimaryBtn>
             </div>
           </div>
-        </Modal>
+        </div>
       )}
     </div>
   );
@@ -2899,7 +3101,7 @@ export default function DieselFilmsOS() {
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
-      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} />}
+      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} />}
       {allowedNav.length === 0 && (
