@@ -2956,12 +2956,87 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) 
 --------------------------------------------------------- */
 const emptyMembroForm = () => ({ nome: "", email: "", senha: "", papel: "Membro", modulos: ["feed", "dashboard", "demandas"] });
 
+const BACKUP_KEYS = [
+  { key: "df_clientes", label: "Clientes" },
+  { key: "df_leads", label: "Leads" },
+  { key: "df_demandas", label: "Demandas" },
+  { key: "df_financeiro", label: "Financeiro" },
+  { key: "df_contratos", label: "Contratos" },
+  { key: "df_equipe", label: "Acesso (equipe)" },
+  { key: "df_orcamentos", label: "Orçamentos" },
+  { key: "df_precificacao", label: "Precificação" },
+];
+
 function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyMembroForm());
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupError, setBackupError] = useState("");
+  const [restorePreview, setRestorePreview] = useState(null);
 
   const canManage = CARGOS_GESTAO.includes(currentUserPapel);
+
+  const exportarBackup = async () => {
+    setBackupBusy(true);
+    setBackupError("");
+    try {
+      const dados = {};
+      for (const { key } of BACKUP_KEYS) {
+        const res = await window.storage.get(key, true);
+        dados[key] = res ? JSON.parse(res.value) : null;
+      }
+      const payload = { geradoEm: new Date().toISOString(), dados };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dieselfilms-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setBackupError("Não deu pra gerar o backup agora. Tente de novo em instantes.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleRestoreFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBackupError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed || typeof parsed.dados !== "object") throw new Error("formato inválido");
+        setRestorePreview(parsed);
+      } catch {
+        setBackupError("Esse arquivo não parece ser um backup válido do DieselFilms OS.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmarRestauracao = async () => {
+    if (!restorePreview) return;
+    setBackupBusy(true);
+    try {
+      for (const { key } of BACKUP_KEYS) {
+        if (!(key in restorePreview.dados)) continue;
+        const value = restorePreview.dados[key];
+        if (value === null || value === undefined) continue;
+        await window.storage.set(key, JSON.stringify(value), true);
+      }
+      window.location.reload();
+    } catch {
+      setBackupError("Não deu pra restaurar agora. Tente de novo em instantes.");
+      setBackupBusy(false);
+    }
+  };
 
   const toggleModulo = (id) => {
     setForm((f) => ({
@@ -3036,6 +3111,55 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
           </div>
         ))}
       </div>
+
+      {canManage && (
+        <div className="mt-6 rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-medium mb-1" style={{ color: C.text, fontFamily: "Inter" }}>Backup dos dados</div>
+          <p className="text-xs mb-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+            Baixa um arquivo com os dados de Clientes, Leads, Demandas, Financeiro, Contratos, Acesso, Orçamentos e Precificação.
+            Guarde em lugar seguro — o arquivo inclui a senha da equipe em formato protegido (hash), não em texto puro, mas ainda é informação sensível.
+          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <PrimaryBtn onClick={exportarBackup} disabled={backupBusy}>
+              <Download size={16} />{backupBusy ? "Gerando..." : "Baixar backup"}
+            </PrimaryBtn>
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer"
+              style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              <input type="file" accept="application/json" onChange={handleRestoreFile} className="hidden" />
+              Restaurar backup...
+            </label>
+          </div>
+          {backupError && <div className="text-xs mt-3" style={{ color: C.red, fontFamily: "Inter" }}>{backupError}</div>}
+        </div>
+      )}
+
+      {restorePreview && (
+        <Modal title="Restaurar backup" onClose={() => setRestorePreview(null)}>
+          <p className="text-sm mb-3" style={{ color: C.textDim, fontFamily: "Inter" }}>
+            Backup gerado em {new Date(restorePreview.geradoEm).toLocaleString("pt-BR")}.
+          </p>
+          <div className="rounded-lg p-3 mb-4" style={{ background: C.bgSoft, border: `1px solid ${C.border}` }}>
+            {BACKUP_KEYS.map(({ key, label }) => {
+              const v = restorePreview.dados[key];
+              const incluso = key in restorePreview.dados && v !== null && v !== undefined;
+              const count = Array.isArray(v) ? v.length : (incluso ? 1 : 0);
+              return (
+                <div key={key} className="flex items-center justify-between text-xs py-1" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                  <span>{label}</span>
+                  <span>{incluso ? `${count} registro${count === 1 ? "" : "s"}` : "não incluso"}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.red, fontFamily: "Inter" }}>
+            Isso substitui os dados atuais desses módulos para toda a equipe, imediatamente. Não tem como desfazer depois.
+          </p>
+          <div className="flex items-center gap-3">
+            <PrimaryBtn onClick={confirmarRestauracao} disabled={backupBusy}>{backupBusy ? "Restaurando..." : "Confirmar restauração"}</PrimaryBtn>
+            <button onClick={() => setRestorePreview(null)} className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
 
       {open && (
         <Modal title={editingId ? "Editar funcionário" : "Cadastrar funcionário"} onClose={() => setOpen(false)}>
