@@ -744,7 +744,20 @@ const DISTRIB_BUCKETS = [
   { label: "Entregue", color: "green", statuses: ["Entregue"] },
 ];
 
-function DashboardModule({ clientes, demandas, financeiro, equipe = [], isMobile }) {
+function tempoRelativo(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "ontem";
+  if (d < 7) return `há ${d} dias`;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity = [], isMobile }) {
   const recebido = financeiro.entradas.reduce((s, e) => s + Number(e.value), 0);
   const gasto = financeiro.saidas.reduce((s, e) => s + Number(e.value), 0);
   const pct = Math.min(100, Math.round((recebido / financeiro.metaMes) * 100));
@@ -887,6 +900,22 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], isMobile
           )}
         </div>
       </div>
+
+      <div className="rounded-xl p-5 mt-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Atividade recente</div>
+        {activity.length === 0 && <div className="text-sm py-2" style={{ color: C.textFaint }}>Nada por aqui ainda.</div>}
+        <div className="flex flex-col gap-1">
+          {activity.slice(0, 10).map((a) => (
+            <div key={a.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+              <div className="text-xs min-w-0" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                <span style={{ color: C.goldBright, fontWeight: 600 }}>{a.userNome}</span> {a.acao} em <span style={{ color: C.text }}>{a.modulo}</span>
+                {a.alvo && <span style={{ color: C.textFaint }}> · {a.alvo}</span>}
+              </div>
+              <span className="text-xs flex-shrink-0 ml-3" style={{ color: C.textFaint }}>{tempoRelativo(a.ts)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -894,7 +923,7 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], isMobile
 /* ---------------------------------------------------------
    DEMANDAS
 --------------------------------------------------------- */
-function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
+function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity = () => {} }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
   const [view, setView] = useState("lista");
@@ -904,6 +933,7 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
   const add = () => {
     if (!form.title.trim()) return;
     setDemandas([{ id: uid(), ...form }, ...demandas]);
+    logActivity("Demandas", "criou", form.title);
     if (form.responsavelId) {
       createNotification({
         userId: form.responsavelId,
@@ -915,13 +945,21 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
     setForm({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
     setOpen(false);
   };
-  const remove = (id) => setDemandas(demandas.filter((d) => d.id !== id));
+  const remove = (id) => {
+    const d = demandas.find((x) => x.id === id);
+    setDemandas(demandas.filter((d) => d.id !== id));
+    if (d) logActivity("Demandas", "excluiu", d.title);
+  };
   const cycle = (id) => {
+    let novoStatus = "";
     setDemandas(demandas.map((d) => {
       if (d.id !== id) return d;
       const i = groups.indexOf(d.status);
-      return { ...d, status: groups[(i + 1) % groups.length] };
+      novoStatus = groups[(i + 1) % groups.length];
+      return { ...d, status: novoStatus };
     }));
+    const d = demandas.find((x) => x.id === id);
+    if (d) logActivity("Demandas", "moveu", `${d.title} → ${statusLabel[novoStatus] || novoStatus}`);
   };
 
   const clientesComDemanda = [...new Set(demandas.map((d) => d.client).filter(Boolean))];
@@ -1054,7 +1092,7 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
 /* ---------------------------------------------------------
    LEADS / CRM
 --------------------------------------------------------- */
-function LeadsModule({ leads, setLeads, clientes, setClientes }) {
+function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () => {} }) {
   const [openNew, setOpenNew] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [noteText, setNoteText] = useState("");
@@ -1080,16 +1118,23 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
       notas: [],
     };
     setLeads([novo, ...leads]);
+    logActivity("Leads", "cadastrou", novo.nome);
     setForm({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
     setOpenNew(false);
   };
 
   const removeLead = (id) => {
+    const l = leads.find((x) => x.id === id);
     setLeads(leads.filter((l) => l.id !== id));
     if (selectedId === id) setSelectedId(null);
+    if (l) logActivity("Leads", "excluiu", l.nome);
   };
 
-  const setEstagio = (id, estagio) => setLeads(leads.map((l) => (l.id === id ? { ...l, estagio } : l)));
+  const setEstagio = (id, estagio) => {
+    setLeads(leads.map((l) => (l.id === id ? { ...l, estagio } : l)));
+    const l = leads.find((x) => x.id === id);
+    if (l) logActivity("Leads", "moveu", `${l.nome} → ${estagioLabel[estagio] || estagio}`);
+  };
   const setTemperatura = (id, temperatura) => setLeads(leads.map((l) => (l.id === id ? { ...l, temperatura } : l)));
 
   const addNota = () => {
@@ -1106,6 +1151,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
       ...clientes,
     ]);
     setLeads(leads.map((l) => (l.id === selected.id ? { ...l, convertido: true } : l)));
+    logActivity("Leads", "converteu em cliente", selected.empresa || selected.nome);
   };
 
   return (
@@ -1245,7 +1291,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
 /* ---------------------------------------------------------
    FINANCEIRO
 --------------------------------------------------------- */
-function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile }) {
+function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, logActivity = () => {} }) {
   const [open, setOpen] = useState(null); // 'entrada' | 'saida'
   const [form, setForm] = useState({ desc: "", client: "", category: "", date: "", value: "" });
   const [copiedId, setCopiedId] = useState(null);
@@ -1261,11 +1307,15 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile }
     const item = { id: uid(), desc: form.desc, date: form.date, value: Number(form.value), client: form.client, category: form.category, notaEmitida: false };
     if (open === "entrada") setFinanceiro({ ...financeiro, entradas: [item, ...financeiro.entradas] });
     else setFinanceiro({ ...financeiro, saidas: [item, ...financeiro.saidas] });
+    logActivity("Financeiro", open === "entrada" ? "lançou entrada" : "lançou saída", `${form.desc} · ${brl(Number(form.value))}`);
     setForm({ desc: "", client: "", category: "", date: "", value: "" });
     setOpen(null);
   };
-  const removeEntry = (list, id) =>
+  const removeEntry = (list, id) => {
+    const item = financeiro[list].find((i) => i.id === id);
     setFinanceiro({ ...financeiro, [list]: financeiro[list].filter((i) => i.id !== id) });
+    if (item) logActivity("Financeiro", "excluiu", `${item.desc} · ${brl(Number(item.value))}`);
+  };
   const toggleNota = (id) =>
     setFinanceiro({ ...financeiro, entradas: financeiro.entradas.map((e) => (e.id === id ? { ...e, notaEmitida: !e.notaEmitida } : e)) });
   const copyDocumento = (e) => {
@@ -1450,7 +1500,7 @@ const baixarContratoDoc = (titulo, html) => {
   URL.revokeObjectURL(url);
 };
 
-function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile }) {
+function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile, logActivity = () => {} }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyContratoForm());
@@ -1516,7 +1566,11 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     if (docRef.current) docRef.current.innerHTML = buildContractHtml(form);
   };
 
-  const remove = (id) => setContratos(contratos.filter((c) => c.id !== id));
+  const remove = (id) => {
+    const c = contratos.find((x) => x.id === id);
+    setContratos(contratos.filter((c) => c.id !== id));
+    if (c) logActivity("Contratos", "excluiu", c.titulo);
+  };
 
   const copyContract = (c) => {
     navigator.clipboard?.writeText(buildContractText(c)).catch(() => {});
@@ -1536,8 +1590,10 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     const payload = { ...form, valor: Number(form.valor) || 0, corpoHtml };
     if (editingId) {
       setContratos(contratos.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
+      logActivity("Contratos", "editou", payload.titulo);
     } else {
       setContratos([{ id, ...payload }, ...contratos]);
+      logActivity("Contratos", "gerou", payload.titulo);
     }
     if (financeiro && setFinanceiro) {
       const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -2658,7 +2714,7 @@ function Avatar({ name, size = 32 }) {
 
 const emptyClienteForm = () => ({ name: "", recorrencia: "Projeto pontual", status: "Prospect", since: "", servicos: "", equipeIds: [], documento: "" });
 
-function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) {
+function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], logActivity = () => {} }) {
   const [filter, setFilter] = useState("Todos");
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("relevancia");
@@ -2711,13 +2767,19 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) 
       setClientes(clientes.map((c) => (c.id === editingId
         ? { ...c, name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim() }
         : c)));
+      logActivity("Clientes", "editou", form.name);
     } else {
       setClientes([{ id: uid(), name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim(), progress: { done: 0, total: 0 } }, ...clientes]);
+      logActivity("Clientes", "cadastrou", form.name);
     }
     resetForm();
     setOpen(false);
   };
-  const remove = (id) => setClientes(clientes.filter((c) => c.id !== id));
+  const remove = (id) => {
+    const c = clientes.find((x) => x.id === id);
+    setClientes(clientes.filter((c) => c.id !== id));
+    if (c) logActivity("Clientes", "excluiu", c.name);
+  };
   const toggleEquipe = (id) => setForm((f) => ({ ...f, equipeIds: f.equipeIds.includes(id) ? f.equipeIds.filter((x) => x !== id) : [...f.equipeIds, id] }));
 
   const copyDoc = (c) => {
@@ -2967,7 +3029,7 @@ const BACKUP_KEYS = [
   { key: "df_precificacao", label: "Precificação" },
 ];
 
-function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
+function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logActivity = () => {} }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyMembroForm());
@@ -3068,16 +3130,22 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
       setEquipe(equipe.map((m) => (m.id === editingId
         ? { ...m, nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, ...senhaFields }
         : m)));
+      logActivity("Acesso", "editou", form.nome);
     } else {
       if (!form.senha.trim()) return;
       const { hash, salt } = await hashPassword(form.senha.trim());
       setEquipe([...equipe, { id: uid(), nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, senhaHash: hash, senhaSalt: salt }]);
+      logActivity("Acesso", "cadastrou", form.nome);
     }
     setForm(emptyMembroForm());
     setEditingId(null);
     setOpen(false);
   };
-  const remove = (id) => setEquipe(equipe.filter((e) => e.id !== id));
+  const remove = (id) => {
+    const m = equipe.find((x) => x.id === id);
+    setEquipe(equipe.filter((e) => e.id !== id));
+    if (m) logActivity("Acesso", "removeu", m.nome);
+  };
 
   return (
     <div>
@@ -3206,6 +3274,7 @@ export default function DieselFilmsOS() {
   const [equipe, setEquipe, equipeLoaded] = useSharedState("df_equipe", seedEquipe);
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSharedState("df_orcamentos", seedOrcamentos);
   const [precificacao, setPrecificacao, precificacaoLoaded] = useSharedState("df_precificacao", seedPrecificacao);
+  const [activity, setActivity, activityLoaded] = useSharedState("df_activity", () => []);
 
   const [sessionUserId, setSessionUserId] = useState(undefined); // undefined = ainda carregando
   useEffect(() => {
@@ -3222,7 +3291,7 @@ export default function DieselFilmsOS() {
     })();
   }, []);
 
-  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && sessionUserId !== undefined;
+  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && activityLoaded && sessionUserId !== undefined;
 
   const [showRetry, setShowRetry] = useState(false);
   useEffect(() => {
@@ -3253,6 +3322,14 @@ export default function DieselFilmsOS() {
 
   const currentUser = equipe.find((u) => u.id === sessionUserId);
 
+  const logActivity = (modulo, acao, alvo) => {
+    if (!currentUser) return;
+    setActivity([
+      { id: uid(), ts: new Date().toISOString(), userId: currentUser.id, userNome: currentUser.nome, modulo, acao, alvo },
+      ...activity,
+    ].slice(0, 300));
+  };
+
   const login = async (user, token) => {
     await window.storage.set("df_session", JSON.stringify(user.id), false).catch(() => {});
     await window.storage.set("df_token", token, false).catch(() => {});
@@ -3277,14 +3354,14 @@ export default function DieselFilmsOS() {
   const modules = (
     <>
       {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
-      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} isMobile={isMobile} />}
-      {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
-      {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
-      {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} />}
+      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} activity={activity} isMobile={isMobile} />}
+      {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} logActivity={logActivity} />}
+      {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} logActivity={logActivity} />}
+      {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} logActivity={logActivity} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
-      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
-      {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} />}
-      {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} />}
+      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} logActivity={logActivity} />}
+      {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} logActivity={logActivity} />}
+      {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} logActivity={logActivity} />}
       {allowedNav.length === 0 && (
         <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>
           Seu cargo ainda não tem módulos liberados. Fale com o administrador.
