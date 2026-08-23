@@ -588,7 +588,7 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
-      <div className="pl-8 pr-5 pt-7 pb-6" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+      <div className="px-5 pt-7 pb-6 flex flex-col items-center text-center" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
         <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
         <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
       </div>
