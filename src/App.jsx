@@ -573,13 +573,7 @@ function NotificationBell({ currentUser }) {
   );
 }
 
-function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
-  const [profileOpen, setProfileOpen] = useState(false);
-
-  const salvarPerfil = async (dados) => {
-    setEquipe(equipe.map((m) => (m.id === user.id ? { ...m, ...dados } : m)));
-  };
-
+function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
   return (
     <div className="relative flex flex-col h-full" style={{
       width: 236, borderRight: `1px solid ${C.borderSoft}`,
@@ -614,20 +608,8 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
       </nav>
 
       <div className="pl-8 pr-5 py-5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2.5 mb-3 text-left w-full">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
-            style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-            {user.fotoUrl ? <img src={user.fotoUrl} alt="" className="w-full h-full object-cover" /> : user.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-          </div>
-          <div>
-            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{user.nome}</div>
-            <div className="text-xs" style={{ color: C.textFaint }}>{user.papel} · configurar perfil</div>
-          </div>
-        </button>
         <button onClick={onLogout} className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
       </div>
-
-      {profileOpen && <ProfileModal user={user} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }
@@ -1613,21 +1595,34 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-4">
+      {(post.reacoes.visto.length + post.reacoes.trabalhando.length > 0 || post.comentarios.length > 0) && (
+        <div className="flex items-center justify-between text-xs mt-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+          <span>
+            {post.reacoes.visto.length + post.reacoes.trabalhando.length > 0
+              ? `👁️ ${post.reacoes.visto.length} · 🧑‍💻 ${post.reacoes.trabalhando.length}`
+              : ""}
+          </span>
+          <span>
+            {post.comentarios.length > 0 ? `${post.comentarios.length} comentário${post.comentarios.length === 1 ? "" : "s"}` : ""}
+          </span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 mt-3 pt-1" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
         <button onClick={() => onToggleReacao(post, "visto")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
-          style={{ background: reagiuVisto ? "rgba(201,162,39,0.14)" : C.bgSoft, color: reagiuVisto ? C.goldBright : C.textDim, fontFamily: "Inter" }}>
-          👁️ {post.reacoes.visto.length}
+          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
+          style={{ color: reagiuVisto ? C.goldBright : C.textDim, fontFamily: "Inter", background: reagiuVisto ? "rgba(201,162,39,0.1)" : "transparent" }}>
+          👁️ Visto
         </button>
         <button onClick={() => onToggleReacao(post, "trabalhando")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
-          style={{ background: reagiuTrabalhando ? "rgba(201,162,39,0.14)" : C.bgSoft, color: reagiuTrabalhando ? C.goldBright : C.textDim, fontFamily: "Inter" }}>
-          🧑‍💻 {post.reacoes.trabalhando.length}
+          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
+          style={{ color: reagiuTrabalhando ? C.goldBright : C.textDim, fontFamily: "Inter", background: reagiuTrabalhando ? "rgba(201,162,39,0.1)" : "transparent" }}>
+          🧑‍💻 Trabalhando
         </button>
         <button onClick={() => setShowComments(!showComments)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ml-auto"
-          style={{ background: "transparent", color: C.textFaint, fontFamily: "Inter" }}>
-          <MessageCircle size={15} />{post.comentarios.length} comentário{post.comentarios.length === 1 ? "" : "s"}
+          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
+          style={{ color: showComments ? C.goldBright : C.textDim, fontFamily: "Inter", background: showComments ? "rgba(201,162,39,0.1)" : "transparent" }}>
+          <MessageCircle size={15} />Comentar
         </button>
       </div>
 
@@ -1796,7 +1791,12 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
 
         <div>
       <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <div className="flex gap-2 mb-3">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
+            style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+            {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+          </div>
+          <div className="flex gap-2">
           {POST_TIPOS.map((t) => (
             <button key={t.id} onClick={() => setTipo(t.id)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium"
@@ -1808,6 +1808,7 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
               {t.label}
             </button>
           ))}
+          </div>
         </div>
 
         {(tipo === "tarefa" || tipo === "frase") && (
@@ -2897,7 +2898,7 @@ export default function DieselFilmsOS() {
       backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
     }}>
       <style>{FONTS}</style>
-      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} equipe={equipe} setEquipe={setEquipe} />
+      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} />
       <div className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
           <NotificationBell currentUser={currentUser} />
