@@ -1,10 +1,16 @@
 import { kv } from "@vercel/kv";
+import { requireSession } from "../_lib/session.js";
 
 // Backend generico de chave/valor usado pelo window.storage (storagePolyfill.js)
 // para os dados compartilhados do app (clientes, demandas, financeiro, contratos,
 // equipe, orcamentos, precificacao) -- mesmo Upstash/KV ja conectado pro Feed.
+//
+// Exige uma sessao valida (token emitido por /api/login) -- sem isso, ninguem
+// de fora consegue ler nem escrever esses dados.
 
 export default async function handler(req, res) {
+  if (!requireSession(req, res)) return;
+
   const { key } = req.query;
   if (!key) {
     res.status(400).json({ error: "key obrigatória." });

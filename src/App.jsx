@@ -17,6 +17,7 @@ import {
 } from "./lib/precificacao.js";
 import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
 import { uploadImagem } from "./lib/mediaApi.js";
+import { hashPassword } from "./lib/authClient.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -362,12 +363,13 @@ const inputStyle = {
 /* ---------------------------------------------------------
    LOGIN
 --------------------------------------------------------- */
-function LoginScreen({ equipe, onLogin }) {
+function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [lembrar, setLembrar] = useState(false);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -386,22 +388,32 @@ function LoginScreen({ equipe, onLogin }) {
     })();
   }, []);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    const user = equipe.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.senha === senha
-    );
-    if (!user) {
-      setError("E-mail ou senha incorretos.");
-      return;
-    }
     setError("");
-    if (lembrar) {
-      window.storage.set("df_remember_login", JSON.stringify({ email, senha }), false).catch(() => {});
-    } else {
-      window.storage.delete("df_remember_login", false).catch(() => {});
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), senha }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "E-mail ou senha incorretos.");
+        setSubmitting(false);
+        return;
+      }
+      if (lembrar) {
+        window.storage.set("df_remember_login", JSON.stringify({ email, senha }), false).catch(() => {});
+      } else {
+        window.storage.delete("df_remember_login", false).catch(() => {});
+      }
+      onLogin(data.user, data.token);
+    } catch {
+      setError("Não deu pra entrar agora. Confira sua conexão e tente de novo.");
+      setSubmitting(false);
     }
-    onLogin(user.id);
   };
 
   return (
@@ -428,9 +440,9 @@ function LoginScreen({ equipe, onLogin }) {
             Lembrar meu login neste aparelho
           </label>
           {error && <div className="text-xs mb-3" style={{ color: C.red, fontFamily: "Inter" }}>{error}</div>}
-          <button type="submit" className="w-full py-2.5 rounded-lg text-sm font-semibold mt-1"
-            style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-            Entrar
+          <button type="submit" disabled={submitting} className="w-full py-2.5 rounded-lg text-sm font-semibold mt-1"
+            style={{ background: C.gold, color: "#141209", fontFamily: "Inter", opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}>
+            {submitting ? "Entrando..." : "Entrar"}
           </button>
         </form>
         <p className="text-xs text-center mt-5" style={{ color: C.textFaint, fontFamily: "Inter" }}>
@@ -2970,15 +2982,21 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel }) {
     setOpen(true);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.nome.trim() || !form.email.trim()) return;
     if (editingId) {
+      let senhaFields = {};
+      if (form.senha.trim()) {
+        const { hash, salt } = await hashPassword(form.senha.trim());
+        senhaFields = { senhaHash: hash, senhaSalt: salt };
+      }
       setEquipe(equipe.map((m) => (m.id === editingId
-        ? { ...m, nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, ...(form.senha.trim() ? { senha: form.senha } : {}) }
+        ? { ...m, nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, ...senhaFields }
         : m)));
     } else {
       if (!form.senha.trim()) return;
-      setEquipe([...equipe, { id: uid(), ...form }]);
+      const { hash, salt } = await hashPassword(form.senha.trim());
+      setEquipe([...equipe, { id: uid(), nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, senhaHash: hash, senhaSalt: salt }]);
     }
     setForm(emptyMembroForm());
     setEditingId(null);
@@ -3070,7 +3088,10 @@ export default function DieselFilmsOS() {
     (async () => {
       try {
         const res = await window.storage.get("df_session", false);
-        setSessionUserId(res ? JSON.parse(res.value) : null);
+        const tokenRes = await window.storage.get("df_token", false);
+        const uid = res ? JSON.parse(res.value) : null;
+        // sessão de antes da autenticação por token existir -- pede login de novo
+        setSessionUserId(uid && tokenRes?.value ? uid : null);
       } catch {
         setSessionUserId(null);
       }
@@ -3108,17 +3129,21 @@ export default function DieselFilmsOS() {
 
   const currentUser = equipe.find((u) => u.id === sessionUserId);
 
-  const login = (userId) => {
-    setSessionUserId(userId);
-    window.storage.set("df_session", JSON.stringify(userId), false).catch(() => {});
+  const login = async (user, token) => {
+    await window.storage.set("df_session", JSON.stringify(user.id), false).catch(() => {});
+    await window.storage.set("df_token", token, false).catch(() => {});
+    // recarrega pra buscar todos os dados compartilhados já autenticado, em vez
+    // de ficar com o que foi carregado (vazio/seed) antes do login
+    window.location.reload();
   };
   const logout = () => {
     setSessionUserId(null);
     window.storage.set("df_session", JSON.stringify(null), false).catch(() => {});
+    window.storage.set("df_token", "", false).catch(() => {});
   };
 
   if (!currentUser) {
-    return <LoginScreen equipe={equipe} onLogin={login} />;
+    return <LoginScreen onLogin={login} />;
   }
 
   const canSee = (id) => CARGOS_GESTAO.includes(currentUser.papel) || currentUser.modulos.includes(id);

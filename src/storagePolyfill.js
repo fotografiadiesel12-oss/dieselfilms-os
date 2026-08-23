@@ -11,8 +11,13 @@ function fullKey(key) {
   return `dieselfilms-os:${key}`;
 }
 
+function authHeaders() {
+  const token = window.localStorage.getItem(fullKey("df_token"));
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function kvGet(key) {
-  const res = await fetch(`/api/kv/${encodeURIComponent(key)}`);
+  const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`kv get falhou (${res.status})`);
   const data = await res.json();
   return data.value ?? null;
@@ -21,14 +26,14 @@ async function kvGet(key) {
 async function kvSet(key, value) {
   const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ value }),
   });
   if (!res.ok) throw new Error(`kv set falhou (${res.status})`);
 }
 
 async function kvDelete(key) {
-  const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, { method: "DELETE" });
+  const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, { method: "DELETE", headers: authHeaders() });
   if (!res.ok) throw new Error(`kv delete falhou (${res.status})`);
 }
 
