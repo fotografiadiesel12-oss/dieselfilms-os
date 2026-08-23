@@ -1706,15 +1706,30 @@ const POST_TIPOS = [
 
 function highlightMentions(texto, equipe) {
   const nomes = equipe.map((u) => u.nome).sort((a, b) => b.length - a.length);
-  if (nomes.length === 0) return texto;
-  const escaped = nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`@(${escaped.join("|")})`, "g");
-  const parts = texto.split(regex);
-  return parts.map((part, i) =>
-    nomes.includes(part)
-      ? <span key={i} style={{ color: C.goldBright, fontWeight: 600 }}>@{part}</span>
-      : <React.Fragment key={i}>{part}</React.Fragment>
-  );
+  const escapedNomes = nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const segments = texto.split(urlRegex);
+  let key = 0;
+  return segments.map((seg) => {
+    if (/^https?:\/\//.test(seg)) {
+      key += 1;
+      return (
+        <a key={`u${key}`} href={seg} target="_blank" rel="noopener noreferrer"
+          style={{ color: C.blue, textDecoration: "underline", wordBreak: "break-all" }}
+          onClick={(e) => e.stopPropagation()}>
+          {seg}
+        </a>
+      );
+    }
+    if (escapedNomes.length === 0) { key += 1; return <React.Fragment key={`t${key}`}>{seg}</React.Fragment>; }
+    const mentionRegex = new RegExp(`@(${escapedNomes.join("|")})`, "g");
+    return seg.split(mentionRegex).map((part) => {
+      key += 1;
+      return nomes.includes(part)
+        ? <span key={`m${key}`} style={{ color: C.goldBright, fontWeight: 600 }}>@{part}</span>
+        : <React.Fragment key={`f${key}`}>{part}</React.Fragment>;
+    });
+  });
 }
 
 function extrairMencoes(texto, equipe) {
@@ -1787,16 +1802,19 @@ function CommentBox({ equipe, onSubmit }) {
   );
 }
 
-function ExpandableText({ text, style, limit = 220 }) {
+function ExpandableText({ text, style, limit = 220, equipe = [] }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
-  if (text.length <= limit) return <div style={style}>{text}</div>;
+  const isLong = text.length > limit;
+  const shown = expanded || !isLong ? text : `${text.slice(0, limit).trimEnd()}… `;
   return (
-    <div style={style}>
-      {expanded ? text : `${text.slice(0, limit).trimEnd()}… `}
-      <button onClick={() => setExpanded(!expanded)} style={{ color: C.goldBright, fontWeight: 600 }}>
-        {expanded ? "ver menos" : "...mais"}
-      </button>
+    <div style={{ whiteSpace: "pre-wrap", ...style }}>
+      {highlightMentions(shown, equipe)}
+      {isLong && (
+        <button onClick={() => setExpanded(!expanded)} style={{ color: C.goldBright, fontWeight: 600, marginLeft: 4 }}>
+          {expanded ? "ver menos" : "...mais"}
+        </button>
+      )}
     </div>
   );
 }
@@ -1807,21 +1825,22 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
   const reagiuTrabalhando = post.reacoes.trabalhando.includes(currentUser.id);
   const podeExcluir = post.autorId === currentUser.id || CARGOS_GESTAO.includes(currentUser.papel);
   const iniciais = post.autorNome.split(" ").map((p) => p[0]).slice(0, 2).join("");
-  const autorPapel = equipe.find((u) => u.id === post.autorId)?.papel;
+  const autor = equipe.find((u) => u.id === post.autorId);
+  const autorFotoUrl = autor?.fotoUrl;
+  const autorPapel = autor?.papel;
   const data = new Date(post.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="rounded-xl p-5 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
             style={{ background: C.goldDim, color: "#141209", fontFamily: "Inter" }}>
-            {iniciais}
+            {autorFotoUrl ? <img src={autorFotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
           </div>
           <div>
-            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>
-              {post.autorNome}{autorPapel && <span style={{ color: C.textFaint, fontWeight: 400 }}> · {autorPapel}</span>}
-            </div>
+            <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>{post.autorNome}</div>
+            {autorPapel && <div className="text-xs" style={{ color: C.textFaint }}>{autorPapel} · DieselFilms</div>}
             <div className="text-xs" style={{ color: C.textFaint }}>{data}</div>
           </div>
         </div>
@@ -1829,18 +1848,20 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
       </div>
 
       {post.tipo === "tarefa" && (
-        <ExpandableText text={post.texto} style={{ fontSize: 14, color: C.text, fontFamily: "Inter", lineHeight: 1.5 }} />
+        <ExpandableText text={post.texto} equipe={equipe} style={{ fontSize: 14, color: C.text, fontFamily: "Inter", lineHeight: 1.5 }} />
       )}
       {post.tipo === "frase" && (
         <div className="text-center py-3">
-          <div className="text-xl" style={{ color: C.goldBright, fontFamily: "Fraunces", fontStyle: "italic" }}>“{post.texto}”</div>
+          <div className="text-xl" style={{ color: C.goldBright, fontFamily: "Fraunces", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
+            “{highlightMentions(post.texto, equipe)}”
+          </div>
           {post.autoria && <div className="text-xs mt-2" style={{ color: C.textFaint }}>— {post.autoria}</div>}
         </div>
       )}
       {post.tipo === "foto" && (
         <div>
           <img src={post.fotoUrl} alt={post.descricao || ""} className="w-full rounded-lg mb-2" style={{ maxHeight: 420, objectFit: "cover" }} />
-          {post.descricao && <ExpandableText text={post.descricao} style={{ fontSize: 14, color: C.textDim, fontFamily: "Inter", lineHeight: 1.5 }} />}
+          {post.descricao && <ExpandableText text={post.descricao} equipe={equipe} style={{ fontSize: 14, color: C.textDim, fontFamily: "Inter", lineHeight: 1.5 }} />}
         </div>
       )}
 
@@ -2752,7 +2773,8 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) 
         <div className="rounded-xl overflow-x-auto thin-scroll" style={{ border: `1px solid ${C.border}` }}>
           <div style={{ minWidth: 820 }}>
             <div className="grid px-5 py-2.5 text-xs uppercase tracking-wide" style={{ gridTemplateColumns: gridCols, gap: 12, color: C.textFaint, fontFamily: "Inter", background: C.bgSoft, borderBottom: `1px solid ${C.border}` }}>
-              <span>Cliente</span><span>Entrou</span><span>Equipe</span><span>Serviços</span><span>Entregas</span><span>Situação</span><span className="text-right">Doc</span>
+              <span>Cliente</span><span>Entrou</span><span>Equipe</span><span>Serviços</span><span>Entregas</span><span>Situação</span>
+              <span className="text-right" style={{ position: "sticky", right: 0, background: C.bgSoft, paddingLeft: 8 }}>Doc</span>
             </div>
             {visible.map((c, idx) => {
               const pct = c.progress.total ? Math.round((c.progress.done / c.progress.total) * 100) : 0;
@@ -2790,9 +2812,11 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) 
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 flex-wrap min-w-0">
+                  <div className="flex items-center gap-1 min-w-0">
                     {servicos.length === 0 && <span className="text-xs" style={{ color: C.textFaint }}>—</span>}
-                    {servicos.slice(0, 2).map((s) => <Pill key={s} tone="neutral">{s}</Pill>)}
+                    {servicos.slice(0, 2).map((s) => (
+                      <Pill key={s} tone="neutral"><span className="truncate inline-block align-bottom" style={{ maxWidth: 100 }}>{s}</span></Pill>
+                    ))}
                     {servicos.length > 2 && <Pill tone="neutral">+{servicos.length - 2}</Pill>}
                   </div>
                   <div>
@@ -2806,7 +2830,7 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) 
                     ) : <span className="text-xs" style={{ color: C.textFaint }}>—</span>}
                   </div>
                   <Pill tone={clientTone[c.status]}>{c.status}</Pill>
-                  <div className="flex items-center gap-0.5 justify-end">
+                  <div className="flex items-center gap-0.5 justify-end" style={{ position: "sticky", right: 0, background: C.surface, paddingLeft: 8 }}>
                     <IconBtn onClick={() => copyDoc(c)} title={copiedId === c.id ? "CPF/CNPJ copiado!" : c.documento ? `Copiar CPF/CNPJ (${c.documento})` : "Sem CPF/CNPJ cadastrado"}>
                       <Copy size={14} color={copiedId === c.id ? C.green : !c.documento ? C.textFaint : undefined} style={{ opacity: c.documento ? 1 : 0.4 }} />
                     </IconBtn>
