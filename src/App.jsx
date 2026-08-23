@@ -4,7 +4,8 @@ import {
   Plus, Trash2, X, Clock, AlertTriangle, TrendingUp, TrendingDown,
   Film, ChevronLeft, ChevronRight, Check, Circle, Radar, Phone, Mail,
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
-  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell
+  Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
+  Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -17,7 +18,7 @@ import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js"
 import { uploadImagem } from "./lib/mediaApi.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
 
 /* ---------------------------------------------------------
@@ -70,11 +71,11 @@ function useIsMobile() {
    SEED DATA
 --------------------------------------------------------- */
 const seedClientes = () => ([
-  { id: uid(), name: "Camila & Rafael", type: "Casamento", status: "Ativo", progress: { done: 4, total: 6 }, since: "Jun 2026" },
-  { id: uid(), name: "Estúdio Lume", type: "Ensaio comercial", status: "Ativo", progress: { done: 1, total: 3 }, since: "Ago 2026" },
-  { id: uid(), name: "Bruna Tartari", type: "Casamento", status: "Ativo", progress: { done: 2, total: 8 }, since: "Jul 2026" },
-  { id: uid(), name: "Grupo Macedonia Eventos", type: "Cobertura de evento", status: "Prospect", progress: { done: 0, total: 0 }, since: "—" },
-  { id: uid(), name: "Isadora & Thiago", type: "Casamento", status: "Encerrado", progress: { done: 6, total: 6 }, since: "Mar 2026" },
+  { id: uid(), name: "Camila & Rafael", recorrencia: "Projeto pontual", servicos: ["Casamento"], status: "Ativo", equipeIds: [], documento: "", progress: { done: 4, total: 6 }, since: "Jun 2026" },
+  { id: uid(), name: "Estúdio Lume", recorrencia: "Recorrente", servicos: ["Ensaio comercial"], status: "Ativo", equipeIds: [], documento: "", progress: { done: 1, total: 3 }, since: "Ago 2026" },
+  { id: uid(), name: "Bruna Tartari", recorrencia: "Projeto pontual", servicos: ["Casamento"], status: "Ativo", equipeIds: [], documento: "", progress: { done: 2, total: 8 }, since: "Jul 2026" },
+  { id: uid(), name: "Grupo Macedonia Eventos", recorrencia: "Projeto pontual", servicos: ["Cobertura de evento"], status: "Prospect", equipeIds: [], documento: "", progress: { done: 0, total: 0 }, since: "—" },
+  { id: uid(), name: "Isadora & Thiago", recorrencia: "Projeto pontual", servicos: ["Casamento"], status: "Encerrado", equipeIds: [], documento: "", progress: { done: 6, total: 6 }, since: "Mar 2026" },
 ]);
 
 const seedDemandas = () => ([
@@ -92,10 +93,10 @@ const seedFinanceiro = () => ({
     { mes: "Jun", valor: 15200 }, { mes: "Jul", valor: 18700 }, { mes: "Ago", valor: 12400 },
   ],
   entradas: [
-    { id: uid(), desc: "Sinal casamento", client: "Camila & Rafael", date: "05/08", value: 4500 },
-    { id: uid(), desc: "Parcela final", client: "Isadora & Thiago", date: "10/08", value: 3200 },
-    { id: uid(), desc: "Ensaio comercial", client: "Estúdio Lume", date: "14/08", value: 2800 },
-    { id: uid(), desc: "Sinal casamento", client: "Bruna Tartari", date: "18/08", value: 1900 },
+    { id: uid(), desc: "Sinal casamento", client: "Camila & Rafael", date: "05/08", value: 4500, notaEmitida: true },
+    { id: uid(), desc: "Parcela final", client: "Isadora & Thiago", date: "10/08", value: 3200, notaEmitida: true },
+    { id: uid(), desc: "Ensaio comercial", client: "Estúdio Lume", date: "14/08", value: 2800, notaEmitida: false },
+    { id: uid(), desc: "Sinal casamento", client: "Bruna Tartari", date: "18/08", value: 1900, notaEmitida: false },
   ],
   saidas: [
     { id: uid(), desc: "Aluguel de lente", category: "Equipamento", date: "06/08", value: 650 },
@@ -106,9 +107,9 @@ const seedFinanceiro = () => ({
 });
 
 const seedContratos = () => ([
-  { id: uid(), titulo: "Cobertura de casamento completa", cliente: "Camila & Rafael", valor: 9000, tipo: "Casamento", status: "Assinado" },
-  { id: uid(), titulo: "Ensaio + tratamento de imagem", cliente: "Estúdio Lume", valor: 3800, tipo: "Comercial", status: "Enviado" },
-  { id: uid(), titulo: "Cobertura foto + vídeo", cliente: "Bruna Tartari", valor: 7600, tipo: "Casamento", status: "Rascunho" },
+  { id: uid(), titulo: "Cobertura de casamento completa", cliente: "Camila & Rafael", documento: "", valor: 9000, tipo: "Casamento", escopo: "Filmagem da cerimônia e festa, edição de teaser e filme completo", prazo: "45 dias úteis", formaPagamento: "50% sinal + 50% na entrega", status: "Assinado" },
+  { id: uid(), titulo: "Ensaio + tratamento de imagem", cliente: "Estúdio Lume", documento: "", valor: 3800, tipo: "Comercial", escopo: "Ensaio comercial com tratamento de imagem", prazo: "15 dias úteis", formaPagamento: "Pix", status: "Enviado" },
+  { id: uid(), titulo: "Cobertura foto + vídeo", cliente: "Bruna Tartari", documento: "", valor: 7600, tipo: "Casamento", escopo: "Cobertura fotográfica e em vídeo do casamento", prazo: "45 dias úteis", formaPagamento: "50% sinal + 50% na entrega", status: "Rascunho" },
 ]);
 
 const ALL_MODULES = ["feed", "dashboard", "leads", "demandas", "financeiro", "orcamentos", "contratos", "clientes", "equipe"];
@@ -320,10 +321,11 @@ function PrimaryBtn({ onClick, children, disabled }) {
   );
 }
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div className="w-full max-w-md rounded-xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <div className={`w-full ${wide ? "max-w-3xl" : "max-w-md"} rounded-xl p-6 thin-scroll`}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, maxHeight: "88vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between mb-5">
           <h3 style={{ fontFamily: "Fraunces", color: C.text }} className="text-lg font-medium">{title}</h3>
           <button onClick={onClose} style={{ color: C.textFaint }}><X size={18} /></button>
@@ -687,7 +689,14 @@ function ModuleHeader({ title, sub, right }) {
 /* ---------------------------------------------------------
    DASHBOARD
 --------------------------------------------------------- */
-function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
+const DISTRIB_BUCKETS = [
+  { label: "Atrasado", color: "red", statuses: ["Alteracao"] },
+  { label: "Aguardando aprovação", color: "amber", statuses: ["Enviar pra aprovacao", "Em aprovacao"] },
+  { label: "Em produção", color: "blue", statuses: ["A iniciar", "Criando"] },
+  { label: "Entregue", color: "green", statuses: ["Entregue"] },
+];
+
+function DashboardModule({ clientes, demandas, financeiro, equipe = [], isMobile }) {
   const recebido = financeiro.entradas.reduce((s, e) => s + Number(e.value), 0);
   const gasto = financeiro.saidas.reduce((s, e) => s + Number(e.value), 0);
   const pct = Math.min(100, Math.round((recebido / financeiro.metaMes) * 100));
@@ -695,6 +704,17 @@ function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
   const emProducao = demandas.filter((d) => d.status !== "Entregue").length;
   const entregues = demandas.filter((d) => d.status === "Entregue").length;
   const proximas = demandas.filter((d) => d.status !== "Entregue").slice(0, 5);
+
+  const carga = equipe
+    .map((m) => ({ ...m, count: demandas.filter((d) => d.responsavelId === m.id && d.status !== "Entregue").length }))
+    .sort((a, b) => b.count - a.count);
+  const cargaMax = Math.max(1, ...carga.map((m) => m.count));
+
+  const distribuicao = DISTRIB_BUCKETS
+    .map((b) => ({ ...b, value: demandas.filter((d) => b.statuses.includes(d.status)).length }))
+    .filter((b) => b.value > 0);
+  const distribuicaoTotal = distribuicao.reduce((s, b) => s + b.value, 0);
+  const toneHex = { red: C.red, amber: C.amber, blue: C.blue, green: C.green };
 
   return (
     <div>
@@ -750,7 +770,7 @@ function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
         </div>
       </div>
 
-      <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <div className="rounded-xl p-5 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Próximas entregas</div>
         <div className="flex flex-col gap-1">
           {proximas.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint }}>Nada pendente por aqui.</div>}
@@ -768,6 +788,57 @@ function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
           ))}
         </div>
       </div>
+
+      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr" }}>
+        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Carga da equipe</div>
+          {carga.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint }}>Ninguém cadastrado ainda.</div>}
+          <div className="flex flex-col gap-3">
+            {carga.map((m) => (
+              <div key={m.id}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>{m.nome}</span>
+                  <span className="text-xs" style={{ color: C.textFaint }}>{m.count} {m.count === 1 ? "demanda" : "demandas"}</span>
+                </div>
+                <div className="h-2 rounded-full" style={{ background: C.border }}>
+                  <div className="h-2 rounded-full" style={{ width: `${(m.count / cargaMax) * 100}%`, background: m.count > 0 ? C.gold : "transparent" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Distribuição</div>
+          {distribuicaoTotal === 0 ? (
+            <div className="text-sm py-4" style={{ color: C.textFaint }}>Nada por aqui ainda.</div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={distribuicao} dataKey="value" nameKey="label" innerRadius={38} outerRadius={56} paddingAngle={2} stroke="none">
+                      {distribuicao.map((b) => <Cell key={b.label} fill={toneHex[b.color]} />)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center text-lg font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>
+                  {distribuicaoTotal}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                {distribuicao.map((b) => (
+                  <div key={b.label} className="flex items-center gap-2 text-xs" style={{ fontFamily: "Inter" }}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: toneHex[b.color] }} />
+                    <span className="truncate flex-1" style={{ color: C.textDim }}>{b.label}</span>
+                    <span style={{ color: C.textFaint }}>{b.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -778,6 +849,8 @@ function DashboardModule({ clientes, demandas, financeiro, isMobile }) {
 function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
+  const [view, setView] = useState("lista");
+  const [clienteFiltro, setClienteFiltro] = useState("");
   const groups = ["A iniciar", "Criando", "Enviar pra aprovacao", "Em aprovacao", "Alteracao", "Entregue"];
 
   const add = () => {
@@ -803,46 +876,102 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe }) {
     }));
   };
 
+  const clientesComDemanda = [...new Set(demandas.map((d) => d.client).filter(Boolean))];
+  const visiveis = clienteFiltro ? demandas.filter((d) => d.client === clienteFiltro) : demandas;
+
   return (
     <div>
       <ModuleHeader title="Demandas" sub={`${demandas.length} tarefas no total · ${demandas.filter(d => d.status === "Alteracao").length} em alteração`}
         right={<PrimaryBtn onClick={() => setOpen(true)}><Plus size={16} />Nova demanda</PrimaryBtn>} />
 
-      <div className="flex flex-col gap-6">
-        {groups.map((g) => {
-          const items = demandas.filter((d) => d.status === g);
-          if (items.length === 0) return null;
-          return (
-            <div key={g}>
-              <div className="flex items-center gap-2 mb-3">
-                <Pill tone={statusTone[g]}>{statusLabel[g]}</Pill>
-                <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
-              </div>
-              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                {items.map((d, idx) => (
-                  <div key={d.id} className="flex items-center justify-between px-4 py-3"
-                    style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
-                    <button className="flex items-center gap-3 text-left flex-1" onClick={() => cycle(d.id)} title="Avançar status">
-                      <Circle size={14} color={C.textFaint} />
-                      <div>
-                        <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
-                        <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>
-                          {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.border}` }}>
+          <Users size={14} color={C.textFaint} />
+          <select value={clienteFiltro} onChange={(e) => setClienteFiltro(e.target.value)}
+            className="text-xs bg-transparent outline-none" style={{ color: C.text, fontFamily: "Inter" }}>
+            <option value="">Todos os clientes</option>
+            {clientesComDemanda.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+          <button onClick={() => setView("lista")} className="p-2" style={{ background: view === "lista" ? C.surfaceHover : "transparent", color: view === "lista" ? C.text : C.textFaint }} title="Lista">
+            <List size={15} />
+          </button>
+          <button onClick={() => setView("quadro")} className="p-2" style={{ background: view === "quadro" ? C.surfaceHover : "transparent", color: view === "quadro" ? C.text : C.textFaint }} title="Quadro">
+            <LayoutGrid size={15} />
+          </button>
+        </div>
+      </div>
+
+      {view === "lista" && (
+        <div className="flex flex-col gap-6">
+          {groups.map((g) => {
+            const items = visiveis.filter((d) => d.status === g);
+            if (items.length === 0) return null;
+            return (
+              <div key={g}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Pill tone={statusTone[g]}>{statusLabel[g]}</Pill>
+                  <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
+                </div>
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                  {items.map((d, idx) => (
+                    <div key={d.id} className="flex items-center justify-between px-4 py-3"
+                      style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
+                      <button className="flex items-center gap-3 text-left flex-1" onClick={() => cycle(d.id)} title="Avançar status">
+                        <Circle size={14} color={C.textFaint} />
+                        <div>
+                          <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
+                          <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>
+                            {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
+                          </div>
                         </div>
+                      </button>
+                      <div className="flex items-center gap-3">
+                        <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
+                        <span className="text-xs" style={{ color: C.textFaint, minWidth: 44, textAlign: "right" }}>{d.date}</span>
+                        <IconBtn onClick={() => remove(d.id)} title="Remover"><Trash2 size={14} /></IconBtn>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {view === "quadro" && (
+        <div className="flex gap-4 overflow-x-auto thin-scroll pb-2">
+          {groups.map((g) => {
+            const items = visiveis.filter((d) => d.status === g);
+            return (
+              <div key={g} className="flex-shrink-0" style={{ width: 260 }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Pill tone={statusTone[g]}>{statusLabel[g]}</Pill>
+                  <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {items.length === 0 && <div className="text-xs rounded-lg p-3" style={{ color: C.textFaint, background: C.surface, border: `1px dashed ${C.border}` }}>Vazio</div>}
+                  {items.map((d) => (
+                    <button key={d.id} onClick={() => cycle(d.id)} title="Avançar status"
+                      className="text-left rounded-lg p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                      <div className="text-sm mb-1.5" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
+                      <div className="text-xs mb-2" style={{ color: C.textFaint }}>
+                        {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
+                        <span className="text-xs" style={{ color: C.textFaint }}>{d.date}</span>
                       </div>
                     </button>
-                    <div className="flex items-center gap-3">
-                      <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
-                      <span className="text-xs" style={{ color: C.textFaint, minWidth: 44, textAlign: "right" }}>{d.date}</span>
-                      <IconBtn onClick={() => remove(d.id)} title="Remover"><Trash2 size={14} /></IconBtn>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {open && (
         <Modal title="Nova demanda" onClose={() => setOpen(false)}>
@@ -925,7 +1054,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
   const converterEmCliente = () => {
     if (!selected) return;
     setClientes([
-      { id: uid(), name: selected.empresa || selected.nome, type: "A definir", status: "Ativo", progress: { done: 0, total: 0 }, since: selected.criadoEm },
+      { id: uid(), name: selected.empresa || selected.nome, recorrencia: "Projeto pontual", servicos: [], status: "Ativo", equipeIds: [], documento: "", progress: { done: 0, total: 0 }, since: selected.criadoEm },
       ...clientes,
     ]);
     setLeads(leads.map((l) => (l.id === selected.id ? { ...l, convertido: true } : l)));
@@ -1068,17 +1197,20 @@ function LeadsModule({ leads, setLeads, clientes, setClientes }) {
 /* ---------------------------------------------------------
    FINANCEIRO
 --------------------------------------------------------- */
-function FinanceiroModule({ financeiro, setFinanceiro, isMobile }) {
+function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile }) {
   const [open, setOpen] = useState(null); // 'entrada' | 'saida'
   const [form, setForm] = useState({ desc: "", client: "", category: "", date: "", value: "" });
+  const [copiedId, setCopiedId] = useState(null);
   const recebido = financeiro.entradas.reduce((s, e) => s + Number(e.value), 0);
   const gasto = financeiro.saidas.reduce((s, e) => s + Number(e.value), 0);
   const saldo = recebido - gasto;
   const pct = Math.min(100, Math.round((recebido / financeiro.metaMes) * 100));
+  const notasEmitidas = financeiro.entradas.filter((e) => e.notaEmitida).length;
+  const notasPendentes = financeiro.entradas.length - notasEmitidas;
 
   const addEntry = () => {
     if (!form.desc.trim() || !form.value) return;
-    const item = { id: uid(), desc: form.desc, date: form.date, value: Number(form.value), client: form.client, category: form.category };
+    const item = { id: uid(), desc: form.desc, date: form.date, value: Number(form.value), client: form.client, category: form.category, notaEmitida: false };
     if (open === "entrada") setFinanceiro({ ...financeiro, entradas: [item, ...financeiro.entradas] });
     else setFinanceiro({ ...financeiro, saidas: [item, ...financeiro.saidas] });
     setForm({ desc: "", client: "", category: "", date: "", value: "" });
@@ -1086,6 +1218,15 @@ function FinanceiroModule({ financeiro, setFinanceiro, isMobile }) {
   };
   const removeEntry = (list, id) =>
     setFinanceiro({ ...financeiro, [list]: financeiro[list].filter((i) => i.id !== id) });
+  const toggleNota = (id) =>
+    setFinanceiro({ ...financeiro, entradas: financeiro.entradas.map((e) => (e.id === id ? { ...e, notaEmitida: !e.notaEmitida } : e)) });
+  const copyDocumento = (e) => {
+    const cliente = clientes.find((c) => c.name === e.client);
+    if (!cliente?.documento) return;
+    navigator.clipboard?.writeText(cliente.documento).catch(() => {});
+    setCopiedId(e.id);
+    setTimeout(() => setCopiedId((id) => (id === e.id ? null : id)), 1500);
+  };
 
   return (
     <div>
@@ -1096,6 +1237,7 @@ function FinanceiroModule({ financeiro, setFinanceiro, isMobile }) {
         <StatCard icon={TrendingUp} label="Recebido" value={brl(recebido)} />
         <StatCard icon={TrendingDown} label="Despesas" value={brl(gasto)} subColor={C.red} />
         <StatCard icon={Wallet} label="Saldo em caixa" value={brl(saldo)} />
+        <StatCard icon={Receipt} label="Notas fiscais" value={`${notasEmitidas}/${financeiro.entradas.length}`} sub={`${notasPendentes} pendente${notasPendentes === 1 ? "" : "s"}`} subColor={notasPendentes ? C.red : C.green} />
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
@@ -1105,18 +1247,29 @@ function FinanceiroModule({ financeiro, setFinanceiro, isMobile }) {
             <button onClick={() => setOpen("entrada")} style={{ color: C.gold }}><Plus size={16} /></button>
           </div>
           <div className="flex flex-col gap-1">
-            {financeiro.entradas.map((e) => (
-              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-                <div>
-                  <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
-                  <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.client} · {e.date}</div>
+            {financeiro.entradas.map((e) => {
+              const cliente = clientes.find((c) => c.name === e.client);
+              return (
+                <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  <div className="min-w-0">
+                    <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.client} · {e.date}</div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-sm font-medium mr-1" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
+                    <IconBtn onClick={() => toggleNota(e.id)} title={e.notaEmitida ? "Nota fiscal emitida" : "Marcar nota fiscal como emitida"}>
+                      <Receipt size={13} color={e.notaEmitida ? C.green : C.textFaint} style={{ opacity: e.notaEmitida ? 1 : 0.5 }} />
+                    </IconBtn>
+                    {cliente?.documento && (
+                      <IconBtn onClick={() => copyDocumento(e)} title={copiedId === e.id ? "CPF/CNPJ copiado!" : `Copiar CPF/CNPJ (${cliente.documento})`}>
+                        <Copy size={13} color={copiedId === e.id ? C.green : undefined} />
+                      </IconBtn>
+                    )}
+                    <IconBtn onClick={() => removeEntry("entradas", e.id)}><Trash2 size={13} /></IconBtn>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
-                  <IconBtn onClick={() => removeEntry("entradas", e.id)}><Trash2 size={13} /></IconBtn>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1162,28 +1315,81 @@ function FinanceiroModule({ financeiro, setFinanceiro, isMobile }) {
 /* ---------------------------------------------------------
    CONTRATOS
 --------------------------------------------------------- */
-function ContratosModule({ contratos, setContratos }) {
+const emptyContratoForm = () => ({ titulo: "", cliente: "", documento: "", tipo: "Casamento", escopo: "", prazo: "", valor: "", formaPagamento: "Pix", status: "Rascunho" });
+
+const buildContractText = (form) => ([
+  "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS",
+  "",
+  `CONTRATANTE: ${form.cliente || "[nome do cliente]"}${form.documento ? `, portador(a) do CPF/CNPJ nº ${form.documento}` : ""}.`,
+  "CONTRATADA: DieselFilms Produções Audiovisuais.",
+  "",
+  "CLÁUSULA 1ª — DO OBJETO",
+  `O presente contrato tem como objeto a prestação de serviços de ${(form.tipo || "").toLowerCase()} pela CONTRATADA à CONTRATANTE, compreendendo: ${form.escopo || "[descreva o escopo do serviço]"}.`,
+  "",
+  "CLÁUSULA 2ª — DO PRAZO",
+  `A entrega dos materiais contratados ocorrerá em até ${form.prazo || "[prazo a combinar]"}, contados a partir da assinatura deste contrato ou da data do evento, o que for aplicável.`,
+  "",
+  "CLÁUSULA 3ª — DO VALOR E FORMA DE PAGAMENTO",
+  `Pelos serviços descritos, a CONTRATANTE pagará à CONTRATADA o valor total de ${brl(Number(form.valor) || 0)}, via ${form.formaPagamento || "[forma de pagamento]"}.`,
+  "",
+  "CLÁUSULA 4ª — DAS DISPOSIÇÕES GERAIS",
+  "Este documento é um rascunho gerado automaticamente pelo DieselFilms OS e deve ser revisado antes de qualquer assinatura formal.",
+  "",
+  "____________________________",
+  "CONTRATANTE",
+  "",
+  "____________________________",
+  "CONTRATADA — DieselFilms",
+].join("\n"));
+
+function ContratosModule({ contratos, setContratos, clientes = [] }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ titulo: "", cliente: "", valor: "", tipo: "Casamento", status: "Rascunho" });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyContratoForm());
+  const [copiedId, setCopiedId] = useState(null);
   const totalMes = contratos.reduce((s, c) => s + Number(c.valor), 0);
 
-  const add = () => {
+  const resetForm = () => { setForm(emptyContratoForm()); setEditingId(null); };
+  const startNew = () => { resetForm(); setOpen(true); };
+  const startEdit = (c) => {
+    setForm({ titulo: c.titulo, cliente: c.cliente, documento: c.documento || "", tipo: c.tipo, escopo: c.escopo || "", prazo: c.prazo || "", valor: String(c.valor), formaPagamento: c.formaPagamento || "Pix", status: c.status });
+    setEditingId(c.id);
+    setOpen(true);
+  };
+
+  const onClienteChange = (v) => {
+    const match = clientes.find((cl) => cl.name.toLowerCase() === v.toLowerCase());
+    setForm((f) => ({ ...f, cliente: v, documento: !f.documento && match?.documento ? match.documento : f.documento }));
+  };
+
+  const save = () => {
     if (!form.titulo.trim()) return;
-    setContratos([{ id: uid(), ...form, valor: Number(form.valor) || 0 }, ...contratos]);
-    setForm({ titulo: "", cliente: "", valor: "", tipo: "Casamento", status: "Rascunho" });
+    const payload = { ...form, valor: Number(form.valor) || 0 };
+    if (editingId) {
+      setContratos(contratos.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
+    } else {
+      setContratos([{ id: uid(), ...payload }, ...contratos]);
+    }
+    resetForm();
     setOpen(false);
   };
   const remove = (id) => setContratos(contratos.filter((c) => c.id !== id));
 
+  const copyContract = (c) => {
+    navigator.clipboard?.writeText(buildContractText(c)).catch(() => {});
+    setCopiedId(c.id);
+    setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
+  };
+
   return (
     <div>
       <ModuleHeader title="Contratos" sub={`${contratos.length} contratos · ${brl(totalMes)} em valor total`}
-        right={<PrimaryBtn onClick={() => setOpen(true)}><Plus size={16} />Novo contrato</PrimaryBtn>} />
+        right={<PrimaryBtn onClick={startNew}><Plus size={16} />Novo contrato</PrimaryBtn>} />
 
       <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
         {contratos.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum contrato ainda.</div>}
         {contratos.map((c, idx) => (
-          <div key={c.id} className="flex items-center justify-between px-5 py-4"
+          <div key={c.id} className="flex items-center justify-between px-5 py-4 flex-wrap gap-3"
             style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
             <div className="flex items-center gap-3">
               <FileText size={16} color={C.textFaint} />
@@ -1195,30 +1401,63 @@ function ContratosModule({ contratos, setContratos }) {
             <div className="flex items-center gap-4">
               <span className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{brl(c.valor)}</span>
               <Pill tone={contratoTone[c.status]}>{c.status}</Pill>
-              <IconBtn onClick={() => remove(c.id)}><Trash2 size={14} /></IconBtn>
+              <IconBtn onClick={() => copyContract(c)} title={copiedId === c.id ? "Copiado!" : "Copiar texto do contrato"}>
+                <Copy size={14} color={copiedId === c.id ? C.green : undefined} />
+              </IconBtn>
+              <IconBtn onClick={() => startEdit(c)} title="Editar"><Pencil size={14} /></IconBtn>
+              <IconBtn onClick={() => remove(c.id)} title="Remover"><Trash2 size={14} /></IconBtn>
             </div>
           </div>
         ))}
       </div>
 
       {open && (
-        <Modal title="Novo contrato" onClose={() => setOpen(false)}>
-          <Field label="Título"><input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} /></Field>
-          <Field label="Cliente"><input style={inputStyle} value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipo">
-              <select style={inputStyle} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                {["Casamento", "Comercial", "Evento", "Ensaio"].map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Valor (R$)"><input type="number" style={inputStyle} value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></Field>
+        <Modal title={editingId ? "Editar contrato" : "Novo contrato"} onClose={() => { setOpen(false); resetForm(); }} wide>
+          <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div>
+              <Field label="Título"><input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex: Cobertura de casamento completa" /></Field>
+              <Field label="Cliente">
+                <input style={inputStyle} list="contrato-clientes" value={form.cliente} onChange={(e) => onClienteChange(e.target.value)} />
+                <datalist id="contrato-clientes">
+                  {clientes.map((cl) => <option key={cl.id} value={cl.name} />)}
+                </datalist>
+              </Field>
+              <Field label="CPF/CNPJ do cliente"><input style={inputStyle} placeholder="Ex: 00.000.000/0001-00" value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Tipo">
+                  <select style={inputStyle} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                    {["Casamento", "Comercial", "Evento", "Ensaio"].map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </Field>
+                <Field label="Valor (R$)"><input type="number" style={inputStyle} value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} /></Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Prazo de entrega"><input style={inputStyle} placeholder="Ex: 20 a 25 dias úteis" value={form.prazo} onChange={(e) => setForm({ ...form, prazo: e.target.value })} /></Field>
+                <Field label="Forma de pagamento">
+                  <select style={inputStyle} value={form.formaPagamento} onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}>
+                    {["Pix", "Cartão", "Boleto", "Transferência", "50% sinal + 50% na entrega"].map((f) => <option key={f}>{f}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Escopo / serviços incluídos">
+                <textarea style={{ ...inputStyle, height: 72, resize: "vertical" }} placeholder="Ex: filmagem da cerimônia e festa, edição de teaser e filme completo"
+                  value={form.escopo} onChange={(e) => setForm({ ...form, escopo: e.target.value })} />
+              </Field>
+              <Field label="Status">
+                <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  {["Rascunho", "Enviado", "Assinado"].map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+              <PrimaryBtn onClick={save}><Plus size={16} />{editingId ? "Salvar alterações" : "Salvar contrato"}</PrimaryBtn>
+            </div>
+            <div className="rounded-lg p-4 thin-scroll" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, maxHeight: 520, overflowY: "auto" }}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs uppercase tracking-wide" style={{ color: C.textFaint, fontFamily: "Inter" }}>Pré-visualização</span>
+                <IconBtn onClick={() => copyContract(form)} title="Copiar texto"><Copy size={14} /></IconBtn>
+              </div>
+              <pre className="text-xs whitespace-pre-wrap" style={{ color: C.textDim, fontFamily: "Inter", lineHeight: 1.6 }}>{buildContractText(form)}</pre>
+            </div>
           </div>
-          <Field label="Status">
-            <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              {["Rascunho", "Enviado", "Assinado"].map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </Field>
-          <PrimaryBtn onClick={add}><Plus size={16} />Salvar contrato</PrimaryBtn>
         </Modal>
       )}
     </div>
@@ -2053,77 +2292,287 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
 /* ---------------------------------------------------------
    CLIENTES
 --------------------------------------------------------- */
-function ClientesModule({ clientes, setClientes }) {
-  const [filter, setFilter] = useState("Todos");
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", type: "Casamento", status: "Prospect" });
-  const counts = { Todos: clientes.length };
-  ["Ativo", "Prospect", "Pausado", "Encerrado"].forEach((s) => counts[s] = clientes.filter((c) => c.status === s).length);
-  const shown = filter === "Todos" ? clientes : clientes.filter((c) => c.status === filter);
+const RECORRENCIAS = ["Recorrente", "Projeto pontual", "Interno"];
+const statusDot = { Ativo: C.green, Prospect: C.amber, Pausado: C.blue, Encerrado: C.textFaint };
+const AVATAR_TONES = [
+  { bg: "rgba(201,162,39,0.18)", color: C.goldBright },
+  { bg: "rgba(111,191,139,0.18)", color: C.green },
+  { bg: "rgba(123,155,176,0.18)", color: C.blue },
+  { bg: "rgba(183,158,234,0.18)", color: C.violet },
+  { bg: "rgba(217,164,65,0.18)", color: C.amber },
+  { bg: "rgba(210,104,91,0.18)", color: C.red },
+];
+const initialsOf = (name) => (name || "").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+const toneForName = (name) => AVATAR_TONES[[...(name || "")].reduce((s, ch) => s + ch.charCodeAt(0), 0) % AVATAR_TONES.length];
 
-  const add = () => {
+function Avatar({ name, size = 32 }) {
+  const tone = toneForName(name);
+  return (
+    <div className="rounded-full flex items-center justify-center flex-shrink-0 font-semibold"
+      style={{ width: size, height: size, background: tone.bg, color: tone.color, fontFamily: "Inter", fontSize: size <= 22 ? 9 : 12 }}>
+      {initialsOf(name)}
+    </div>
+  );
+}
+
+const emptyClienteForm = () => ({ name: "", recorrencia: "Projeto pontual", status: "Prospect", since: "", servicos: "", equipeIds: [], documento: "" });
+
+function ClientesModule({ clientes, setClientes, equipe = [], contratos = [] }) {
+  const [filter, setFilter] = useState("Todos");
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState("relevancia");
+  const [view, setView] = useState("list");
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyClienteForm());
+  const [copiedId, setCopiedId] = useState(null);
+
+  const counts = { Todos: clientes.length };
+  ["Ativo", "Pausado", "Prospect", "Encerrado"].forEach((s) => counts[s] = clientes.filter((c) => c.status === s).length);
+
+  const semContratoCount = clientes.filter((c) => !contratos.some((ct) => ct.cliente === c.name)).length;
+  const ativosCount = counts.Ativo || 0;
+  const ativosPct = clientes.length ? Math.round((ativosCount / clientes.length) * 100) : 0;
+  const trabalhoAbertoCount = clientes.filter((c) => c.progress.total > 0 && c.progress.done < c.progress.total).length;
+  const recorrentesCount = clientes.filter((c) => c.recorrencia === "Recorrente").length;
+
+  const statusOrder = { Ativo: 0, Prospect: 1, Pausado: 2, Encerrado: 3 };
+  const visible = clientes
+    .filter((c) => filter === "Todos" || c.status === filter)
+    .filter((c) => {
+      if (!query.trim()) return true;
+      const q = query.trim().toLowerCase();
+      return c.name.toLowerCase().includes(q) || (c.servicos || []).some((s) => s.toLowerCase().includes(q));
+    })
+    .slice()
+    .sort((a, b) => {
+      if (sortBy === "nome") return a.name.localeCompare(b.name);
+      if (sortBy === "entregas") return (b.progress.total - b.progress.done) - (a.progress.total - a.progress.done);
+      if (sortBy === "relevancia") return statusOrder[a.status] - statusOrder[b.status];
+      return 0;
+    });
+
+  const teamOf = (c) => (c.equipeIds || []).map((id) => equipe.find((e) => e.id === id)).filter(Boolean);
+
+  const resetForm = () => { setForm(emptyClienteForm()); setEditingId(null); };
+
+  const startNew = () => { resetForm(); setOpen(true); };
+  const startEdit = (c) => {
+    setForm({ name: c.name, recorrencia: c.recorrencia || "Projeto pontual", status: c.status, since: c.since === "—" ? "" : c.since, servicos: (c.servicos || []).join(", "), equipeIds: c.equipeIds || [], documento: c.documento || "" });
+    setEditingId(c.id);
+    setOpen(true);
+  };
+
+  const save = () => {
     if (!form.name.trim()) return;
-    setClientes([{ id: uid(), ...form, progress: { done: 0, total: 0 }, since: "—" }, ...clientes]);
-    setForm({ name: "", type: "Casamento", status: "Prospect" });
+    const servicos = form.servicos.split(",").map((s) => s.trim()).filter(Boolean);
+    if (editingId) {
+      setClientes(clientes.map((c) => (c.id === editingId
+        ? { ...c, name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim() }
+        : c)));
+    } else {
+      setClientes([{ id: uid(), name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim(), progress: { done: 0, total: 0 } }, ...clientes]);
+    }
+    resetForm();
     setOpen(false);
   };
   const remove = (id) => setClientes(clientes.filter((c) => c.id !== id));
+  const toggleEquipe = (id) => setForm((f) => ({ ...f, equipeIds: f.equipeIds.includes(id) ? f.equipeIds.filter((x) => x !== id) : [...f.equipeIds, id] }));
+
+  const copyDoc = (c) => {
+    if (!c.documento) return;
+    navigator.clipboard?.writeText(c.documento).catch(() => {});
+    setCopiedId(c.id);
+    setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
+  };
+
+  const gridCols = "minmax(200px,2fr) 90px 150px minmax(150px,1.3fr) 130px 100px 90px";
 
   return (
     <div>
-      <ModuleHeader title="Clientes" sub={`${clientes.length} cadastrados · ${counts.Ativo || 0} ativos`}
-        right={<PrimaryBtn onClick={() => setOpen(true)}><Plus size={16} />Novo cliente</PrimaryBtn>} />
+      <ModuleHeader title="Clientes" sub={`${clientes.length} cadastrados · ${trabalhoAbertoCount} com trabalho em aberto`}
+        right={<PrimaryBtn onClick={startNew}><Plus size={16} />Cliente</PrimaryBtn>} />
 
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {["Todos", "Ativo", "Prospect", "Pausado", "Encerrado"].map((s) => (
-          <button key={s} onClick={() => setFilter(s)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{
-              background: filter === s ? C.gold : C.surface,
-              color: filter === s ? "#141209" : C.textDim,
-              border: `1px solid ${filter === s ? C.gold : C.border}`,
-              fontFamily: "Inter",
-            }}>
-            {s} {counts[s] !== undefined ? counts[s] : ""}
-          </button>
-        ))}
+      <div className="flex gap-3 flex-wrap mb-6">
+        <StatCard icon={Users} label="Clientes cadastrados" value={clientes.length} />
+        <StatCard icon={UserCheck} label="Ativos na carteira" value={`${ativosCount}`} sub={`${ativosPct}%`} subColor={C.green} />
+        <StatCard icon={Activity} label="Com trabalho em aberto" value={trabalhoAbertoCount} />
+        <StatCard icon={Repeat} label="Contratos recorrentes" value={recorrentesCount} />
+        <StatCard icon={FileX} label="Sem contrato" value={semContratoCount} subColor={semContratoCount ? C.red : undefined} />
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-        {shown.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum cliente aqui.</div>}
-        {shown.map((c, idx) => {
-          const pct = c.progress.total ? Math.round((c.progress.done / c.progress.total) * 100) : 0;
-          return (
-            <div key={c.id} className="flex items-center justify-between px-5 py-4"
-              style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
-              <div>
-                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{c.name}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{c.type} · desde {c.since}</div>
-              </div>
-              <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {["Todos", "Ativo", "Pausado", "Prospect", "Encerrado"].map((s) => (
+            <button key={s} onClick={() => setFilter(s)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{
+                background: filter === s ? C.gold : C.surface,
+                color: filter === s ? "#141209" : C.textDim,
+                border: `1px solid ${filter === s ? C.gold : C.border}`,
+                fontFamily: "Inter",
+              }}>
+              {s !== "Todos" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: filter === s ? "#141209" : statusDot[s] }} />}
+              {s} {counts[s] !== undefined ? counts[s] : ""}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.border}` }}>
+            <Search size={14} color={C.textFaint} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente"
+              className="text-xs bg-transparent outline-none" style={{ color: C.text, fontFamily: "Inter", width: 140 }} />
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.border}` }}>
+            <ArrowUpDown size={14} color={C.textFaint} />
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+              className="text-xs bg-transparent outline-none" style={{ color: C.text, fontFamily: "Inter" }}>
+              <option value="relevancia">Relevância</option>
+              <option value="nome">Nome (A-Z)</option>
+              <option value="entregas">Entregas pendentes</option>
+            </select>
+          </div>
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+            <button onClick={() => setView("list")} className="p-2" style={{ background: view === "list" ? C.surfaceHover : "transparent", color: view === "list" ? C.text : C.textFaint }} title="Lista">
+              <List size={15} />
+            </button>
+            <button onClick={() => setView("grid")} className="p-2" style={{ background: view === "grid" ? C.surfaceHover : "transparent", color: view === "grid" ? C.text : C.textFaint }} title="Grade">
+              <LayoutGrid size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {visible.length === 0 && (
+        <div className="p-6 text-sm rounded-xl" style={{ color: C.textFaint, background: C.surface, border: `1px solid ${C.border}` }}>Nenhum cliente aqui.</div>
+      )}
+
+      {visible.length > 0 && view === "list" && (
+        <div className="rounded-xl overflow-x-auto thin-scroll" style={{ border: `1px solid ${C.border}` }}>
+          <div style={{ minWidth: 820 }}>
+            <div className="grid px-5 py-2.5 text-xs uppercase tracking-wide" style={{ gridTemplateColumns: gridCols, gap: 12, color: C.textFaint, fontFamily: "Inter", background: C.bgSoft, borderBottom: `1px solid ${C.border}` }}>
+              <span>Cliente</span><span>Entrou</span><span>Equipe</span><span>Serviços</span><span>Entregas</span><span>Situação</span><span className="text-right">Doc</span>
+            </div>
+            {visible.map((c, idx) => {
+              const pct = c.progress.total ? Math.round((c.progress.done / c.progress.total) * 100) : 0;
+              const team = teamOf(c);
+              const servicos = c.servicos || [];
+              return (
+                <div key={c.id} className="grid items-center px-5 py-3.5"
+                  style={{ gridTemplateColumns: gridCols, gap: 12, background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar name={c.name} />
+                    <div className="min-w-0">
+                      <div className="text-sm truncate" style={{ color: C.text, fontFamily: "Inter" }}>{c.name}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{c.recorrencia}</div>
+                    </div>
+                  </div>
+                  <span className="text-xs" style={{ color: C.textDim }}>{c.since}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {team.length === 0 && <span className="text-xs" style={{ color: C.textFaint }}>—</span>}
+                    {team.length === 1 && (
+                      <>
+                        <Avatar name={team[0].nome} size={20} />
+                        <span className="text-xs truncate" style={{ color: C.textDim }}>{team[0].nome}</span>
+                      </>
+                    )}
+                    {team.length > 1 && (
+                      <>
+                        <div className="flex" style={{ marginRight: 4 }}>
+                          {team.slice(0, 2).map((m, i) => (
+                            <div key={m.id} style={{ marginLeft: i ? -6 : 0, border: `2px solid ${C.surface}`, borderRadius: "9999px" }}>
+                              <Avatar name={m.nome} size={20} />
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-xs" style={{ color: C.textDim }}>{team.length} pessoas</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap min-w-0">
+                    {servicos.length === 0 && <span className="text-xs" style={{ color: C.textFaint }}>—</span>}
+                    {servicos.slice(0, 2).map((s) => <Pill key={s} tone="neutral">{s}</Pill>)}
+                    {servicos.length > 2 && <Pill tone="neutral">+{servicos.length - 2}</Pill>}
+                  </div>
+                  <div>
+                    {c.progress.total > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full" style={{ background: C.border, minWidth: 40 }}>
+                          <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: C.gold }} />
+                        </div>
+                        <span className="text-xs whitespace-nowrap" style={{ color: C.textFaint }}>{c.progress.done}/{c.progress.total}</span>
+                      </div>
+                    ) : <span className="text-xs" style={{ color: C.textFaint }}>—</span>}
+                  </div>
+                  <Pill tone={clientTone[c.status]}>{c.status}</Pill>
+                  <div className="flex items-center gap-0.5 justify-end">
+                    <IconBtn onClick={() => copyDoc(c)} title={copiedId === c.id ? "CPF/CNPJ copiado!" : c.documento ? `Copiar CPF/CNPJ (${c.documento})` : "Sem CPF/CNPJ cadastrado"}>
+                      <Copy size={14} color={copiedId === c.id ? C.green : !c.documento ? C.textFaint : undefined} style={{ opacity: c.documento ? 1 : 0.4 }} />
+                    </IconBtn>
+                    <IconBtn onClick={() => startEdit(c)} title="Editar"><Pencil size={14} /></IconBtn>
+                    <IconBtn onClick={() => remove(c.id)} title="Remover"><Trash2 size={14} /></IconBtn>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {visible.length > 0 && view === "grid" && (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+          {visible.map((c) => {
+            const pct = c.progress.total ? Math.round((c.progress.done / c.progress.total) * 100) : 0;
+            const team = teamOf(c);
+            const servicos = c.servicos || [];
+            return (
+              <div key={c.id} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar name={c.name} />
+                    <div className="min-w-0">
+                      <div className="text-sm truncate" style={{ color: C.text, fontFamily: "Inter" }}>{c.name}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{c.recorrencia}</div>
+                    </div>
+                  </div>
+                  <Pill tone={clientTone[c.status]}>{c.status}</Pill>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap mb-3 min-h-[22px]">
+                  {servicos.slice(0, 3).map((s) => <Pill key={s} tone="neutral">{s}</Pill>)}
+                  {servicos.length > 3 && <Pill tone="neutral">+{servicos.length - 3}</Pill>}
+                </div>
                 {c.progress.total > 0 && (
-                  <div className="flex items-center gap-2" style={{ width: 120 }}>
+                  <div className="flex items-center gap-2 mb-3">
                     <div className="flex-1 h-1.5 rounded-full" style={{ background: C.border }}>
                       <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: C.gold }} />
                     </div>
-                    <span className="text-xs" style={{ color: C.textFaint }}>{c.progress.done}/{c.progress.total}</span>
+                    <span className="text-xs whitespace-nowrap" style={{ color: C.textFaint }}>{c.progress.done}/{c.progress.total}</span>
                   </div>
                 )}
-                <Pill tone={clientTone[c.status]}>{c.status}</Pill>
-                <IconBtn onClick={() => remove(c.id)}><Trash2 size={14} /></IconBtn>
+                <div className="flex items-center justify-between pt-3" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+                  <span className="text-xs" style={{ color: C.textFaint }}>desde {c.since}</span>
+                  <div className="flex items-center gap-1">
+                    <IconBtn onClick={() => copyDoc(c)} title={copiedId === c.id ? "CPF/CNPJ copiado!" : c.documento ? `Copiar CPF/CNPJ (${c.documento})` : "Sem CPF/CNPJ cadastrado"}>
+                      <Copy size={14} color={copiedId === c.id ? C.green : !c.documento ? C.textFaint : undefined} style={{ opacity: c.documento ? 1 : 0.4 }} />
+                    </IconBtn>
+                    <IconBtn onClick={() => startEdit(c)} title="Editar"><Pencil size={14} /></IconBtn>
+                    <IconBtn onClick={() => remove(c.id)} title="Remover"><Trash2 size={14} /></IconBtn>
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {open && (
-        <Modal title="Novo cliente" onClose={() => setOpen(false)}>
+        <Modal title={editingId ? "Editar cliente" : "Novo cliente"} onClose={() => { setOpen(false); resetForm(); }}>
           <Field label="Nome"><input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipo de trabalho">
-              <select style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {["Casamento", "Comercial", "Evento", "Ensaio"].map((t) => <option key={t}>{t}</option>)}
+            <Field label="Recorrência">
+              <select style={inputStyle} value={form.recorrencia} onChange={(e) => setForm({ ...form, recorrencia: e.target.value })}>
+                {RECORRENCIAS.map((r) => <option key={r}>{r}</option>)}
               </select>
             </Field>
             <Field label="Status">
@@ -2132,7 +2581,26 @@ function ClientesModule({ clientes, setClientes }) {
               </select>
             </Field>
           </div>
-          <PrimaryBtn onClick={add}><Plus size={16} />Adicionar cliente</PrimaryBtn>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Entrou em"><input style={inputStyle} placeholder="Ex: Ago 2026" value={form.since} onChange={(e) => setForm({ ...form, since: e.target.value })} /></Field>
+            <Field label="CPF/CNPJ (nota fiscal)"><input style={inputStyle} placeholder="Ex: 00.000.000/0001-00" value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} /></Field>
+          </div>
+          <Field label="Serviços (separados por vírgula)">
+            <input style={inputStyle} placeholder="Ex: Casamento, Making of" value={form.servicos} onChange={(e) => setForm({ ...form, servicos: e.target.value })} />
+          </Field>
+          {equipe.length > 0 && (
+            <Field label="Equipe responsável">
+              <div className="flex flex-col gap-2 mt-1">
+                {equipe.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2 text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                    <input type="checkbox" checked={form.equipeIds.includes(m.id)} onChange={() => toggleEquipe(m.id)} />
+                    {m.nome}
+                  </label>
+                ))}
+              </div>
+            </Field>
+          )}
+          <PrimaryBtn onClick={save}><Plus size={16} />{editingId ? "Salvar alterações" : "Adicionar cliente"}</PrimaryBtn>
         </Modal>
       )}
     </div>
@@ -2328,13 +2796,13 @@ export default function DieselFilmsOS() {
   const modules = (
     <>
       {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
-      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} isMobile={isMobile} />}
+      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} isMobile={isMobile} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
-      {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} />}
+      {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
-      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} />}
-      {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} />}
+      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} />}
+      {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} />}
       {allowedNav.length === 0 && (
         <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>
