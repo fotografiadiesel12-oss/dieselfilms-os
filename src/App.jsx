@@ -573,7 +573,52 @@ function NotificationBell({ currentUser }) {
   );
 }
 
-function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
+function SidebarProfileCard({ currentUser, equipe, setEquipe }) {
+  const [posts, setPosts] = useState([]);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const iniciais = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+
+  useEffect(() => {
+    const fetchPosts = () => listPosts().then(setPosts).catch(() => {});
+    fetchPosts();
+    const interval = setInterval(fetchPosts, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const salvarPerfil = async (dados) => {
+    setEquipe(equipe.map((m) => (m.id === currentUser.id ? { ...m, ...dados } : m)));
+  };
+
+  const meusPosts = posts.filter((p) => p.autorId === currentUser.id);
+  const reacoesRecebidas = meusPosts.reduce((s, p) => s + p.reacoes.visto.length + p.reacoes.trabalhando.length, 0);
+
+  return (
+    <div className="px-5 py-4 flex flex-col items-center text-center" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+      <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden mb-2"
+        style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+        {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+      </div>
+      <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{currentUser.nome}</div>
+      <div className="text-[11px] mt-0.5" style={{ color: C.textDim, fontFamily: "Inter" }}>{currentUser.papel} · DieselFilms</div>
+      <button onClick={() => setProfileOpen(true)} className="mt-2 px-3 py-1 rounded-full text-[11px]"
+        style={{ border: `1px dashed ${C.border}`, color: C.textDim, fontFamily: "Inter" }}>
+        + Editar perfil
+      </button>
+      <div className="mt-3 pt-3 w-full flex items-center justify-center gap-3 text-[11px]" style={{ borderTop: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
+        <span style={{ color: C.textDim }}>
+          <span style={{ color: C.goldBright, fontWeight: 600 }}>{meusPosts.length}</span> publicações
+        </span>
+        <span style={{ color: C.textFaint }}>·</span>
+        <span style={{ color: C.textDim }}>
+          <span style={{ color: C.goldBright, fontWeight: 600 }}>{reacoesRecebidas}</span> reações
+        </span>
+      </div>
+      {profileOpen && <ProfileModal user={currentUser} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
+    </div>
+  );
+}
+
+function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
   return (
     <div className="relative flex flex-col h-full" style={{
       width: 236, borderRight: `1px solid ${C.borderSoft}`,
@@ -582,10 +627,12 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout }) {
       backgroundSize: "cover", backgroundPosition: "top",
     }}>
       <Sprockets />
-      <div className="px-5 pt-7 pb-6 flex flex-col items-center text-center" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 130, height: "auto" }} />
-        <div className="text-[10px] mt-1.5 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
+      <div className="px-5 pt-5 pb-3 flex flex-col items-center text-center">
+        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 92, height: "auto" }} />
+        <div className="text-[9px] mt-1 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
       </div>
+
+      <SidebarProfileCard currentUser={user} equipe={equipe} setEquipe={setEquipe} />
 
       <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1">
         {allowedNav.map((item) => {
@@ -1644,38 +1691,7 @@ function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, 
   );
 }
 
-function FeedProfileCard({ currentUser, posts, onEditProfile }) {
-  const meusPosts = posts.filter((p) => p.autorId === currentUser.id);
-  const reacoesRecebidas = meusPosts.reduce((s, p) => s + p.reacoes.visto.length + p.reacoes.trabalhando.length, 0);
-  const iniciais = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
-
-  return (
-    <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, height: "fit-content" }}>
-      <div className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-semibold overflow-hidden mb-3"
-        style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-        {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
-      </div>
-      <div className="text-base font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{currentUser.nome}</div>
-      <div className="text-xs mt-1" style={{ color: C.textDim, fontFamily: "Inter" }}>{currentUser.papel} · DieselFilms</div>
-      <button onClick={onEditProfile} className="mt-3 px-3 py-1.5 rounded-full text-xs"
-        style={{ border: `1px dashed ${C.border}`, color: C.textDim, fontFamily: "Inter" }}>
-        + Editar perfil
-      </button>
-      <div className="mt-4 pt-4 flex flex-col gap-2.5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <div className="flex items-center justify-between text-xs" style={{ fontFamily: "Inter" }}>
-          <span style={{ color: C.textDim }}>Publicações</span>
-          <span style={{ color: C.goldBright, fontWeight: 600 }}>{meusPosts.length}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs" style={{ fontFamily: "Inter" }}>
-          <span style={{ color: C.textDim }}>Reações recebidas</span>
-          <span style={{ color: C.goldBright, fontWeight: 600 }}>{reacoesRecebidas}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
+function FeedModule({ equipe, currentUser }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1686,11 +1702,7 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
   const [fotoUrl, setFotoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [posting, setPosting] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-
-  const salvarPerfil = async (dados) => {
-    setEquipe(equipe.map((m) => (m.id === currentUser.id ? { ...m, ...dados } : m)));
-  };
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const fetchPosts = () => {
     listPosts()
@@ -1743,6 +1755,7 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
       setPosts([post, ...posts]);
       resetComposer();
       setError("");
+      setComposerOpen(false);
     } catch {
       setError("Não deu pra publicar agora. Confirme se o backend está configurado na Vercel.");
     } finally {
@@ -1782,61 +1795,34 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
     deletePost(id).catch(() => {});
   };
 
+  const iniciaisUser = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  const abrirComposer = (tipoEscolhido) => {
+    setTipo(tipoEscolhido);
+    setComposerOpen(true);
+  };
+
   return (
     <div>
       <ModuleHeader title="Feed" sub="O que está rolando na equipe hoje" />
 
-      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", alignItems: "start" }}>
-        <FeedProfileCard currentUser={currentUser} posts={posts} onEditProfile={() => setProfileOpen(true)} />
-
-        <div>
       <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <div className="flex items-center gap-3 mb-3">
+        <button onClick={() => abrirComposer("tarefa")} className="flex items-center gap-3 w-full text-left mb-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
             style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-            {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+            {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciaisUser}
           </div>
-          <div className="flex gap-2">
+          <div className="flex-1 rounded-full px-4 py-2.5 text-sm" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.textFaint, fontFamily: "Inter" }}>
+            Começar publicação
+          </div>
+        </button>
+        <div className="flex gap-2 pl-12">
           {POST_TIPOS.map((t) => (
-            <button key={t.id} onClick={() => setTipo(t.id)}
+            <button key={t.id} onClick={() => abrirComposer(t.id)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{
-                background: tipo === t.id ? C.gold : "transparent",
-                color: tipo === t.id ? "#141209" : C.textDim,
-                border: `1px solid ${tipo === t.id ? C.gold : C.border}`, fontFamily: "Inter",
-              }}>
+              style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
               {t.label}
             </button>
           ))}
-          </div>
-        </div>
-
-        {(tipo === "tarefa" || tipo === "frase") && (
-          <textarea style={{ ...inputStyle, minHeight: 60 }}
-            placeholder={tipo === "tarefa" ? "O que você vai fazer hoje?" : "Escreva a frase..."}
-            value={texto} onChange={(e) => setTexto(e.target.value)} />
-        )}
-        {tipo === "frase" && (
-          <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Autoria (opcional)"
-            value={autoria} onChange={(e) => setAutoria(e.target.value)} />
-        )}
-        {tipo === "foto" && (
-          <div>
-            <input type="file" accept="image/*" onChange={handleFile}
-              className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }} />
-            {uploading && <div className="text-xs mt-1" style={{ color: C.textFaint }}>Enviando...</div>}
-            {fotoUrl && !uploading && (
-              <img src={fotoUrl} alt="" className="rounded-lg mt-2" style={{ maxHeight: 180 }} />
-            )}
-            <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Legenda (opcional)"
-              value={descricao} onChange={(e) => setDescricao(e.target.value)} />
-          </div>
-        )}
-
-        <div className="flex justify-end mt-3">
-          <PrimaryBtn onClick={publicar} disabled={!podePostar || posting}>
-            <Plus size={16} />{posting ? "Publicando..." : "Postar"}
-          </PrimaryBtn>
         </div>
       </div>
 
@@ -1850,10 +1836,60 @@ function FeedModule({ equipe, setEquipe, currentUser, isMobile }) {
         <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
           onToggleReacao={toggleReacao} onAddComentario={addComentario} onDelete={remove} />
       ))}
-        </div>
-      </div>
 
-      {profileOpen && <ProfileModal user={currentUser} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
+      {composerOpen && (
+        <Modal title="Criar publicação" onClose={() => { setComposerOpen(false); resetComposer(); }}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
+              style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
+              {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciaisUser}
+            </div>
+            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{currentUser.nome}</div>
+          </div>
+
+          <div className="flex gap-2 mb-3">
+            {POST_TIPOS.map((t) => (
+              <button key={t.id} onClick={() => setTipo(t.id)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={{
+                  background: tipo === t.id ? C.gold : "transparent",
+                  color: tipo === t.id ? "#141209" : C.textDim,
+                  border: `1px solid ${tipo === t.id ? C.gold : C.border}`, fontFamily: "Inter",
+                }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {(tipo === "tarefa" || tipo === "frase") && (
+            <textarea autoFocus style={{ ...inputStyle, minHeight: 90 }}
+              placeholder={tipo === "tarefa" ? "O que você vai fazer hoje?" : "Escreva a frase..."}
+              value={texto} onChange={(e) => setTexto(e.target.value)} />
+          )}
+          {tipo === "frase" && (
+            <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Autoria (opcional)"
+              value={autoria} onChange={(e) => setAutoria(e.target.value)} />
+          )}
+          {tipo === "foto" && (
+            <div>
+              <input type="file" accept="image/*" onChange={handleFile}
+                className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }} />
+              {uploading && <div className="text-xs mt-1" style={{ color: C.textFaint }}>Enviando...</div>}
+              {fotoUrl && !uploading && (
+                <img src={fotoUrl} alt="" className="rounded-lg mt-2 w-full" style={{ maxHeight: 260, objectFit: "cover" }} />
+              )}
+              <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Legenda (opcional)"
+                value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+            </div>
+          )}
+
+          <div className="flex justify-end mt-4">
+            <PrimaryBtn onClick={publicar} disabled={!podePostar || posting}>
+              <Plus size={16} />{posting ? "Publicando..." : "Postar"}
+            </PrimaryBtn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -2857,7 +2893,7 @@ export default function DieselFilmsOS() {
 
   const modules = (
     <>
-      {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} setEquipe={setEquipe} currentUser={currentUser} isMobile={isMobile} />}
+      {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
       {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} isMobile={isMobile} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} />}
@@ -2898,7 +2934,7 @@ export default function DieselFilmsOS() {
       backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
     }}>
       <style>{FONTS}</style>
-      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} />
+      <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} equipe={equipe} setEquipe={setEquipe} />
       <div className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
           <NotificationBell currentUser={currentUser} />
