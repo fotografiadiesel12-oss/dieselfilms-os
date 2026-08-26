@@ -244,7 +244,20 @@ function useSharedState(key, seedFn) {
 
     fetchValue(false);
     const interval = setInterval(() => fetchValue(true), SHARED_POLL_MS);
-    return () => { cancelled = true; clearInterval(interval); };
+
+    // no celular o navegador pausa o setInterval quando o app vai pra segundo
+    // plano (troca de app, tela bloqueada) -- sem isso, ao voltar o usuário
+    // fica vendo dados velhos até dar refresh manual na página.
+    const onVisible = () => { if (document.visibilityState === "visible") fetchValue(true); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [key]);
 
   useEffect(() => {
