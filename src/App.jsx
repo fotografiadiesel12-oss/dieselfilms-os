@@ -264,7 +264,9 @@ function useSharedState(key, seedFn) {
   useEffect(() => {
     if (!loaded) return;
     if (skipNextWrite.current) { skipNextWrite.current = false; return; }
-    window.storage.set(key, JSON.stringify(value), true).catch(() => {});
+    window.storage.set(key, JSON.stringify(value), true).catch(() => {
+      toastError(`Não deu pra salvar a alteração em ${SHARED_LABELS[key] || key} — verifique sua internet e tente de novo.`);
+    });
   }, [value, loaded, key]);
 
   return [value, setValue, loaded];
@@ -303,6 +305,57 @@ function Pill({ children, tone = "neutral" }) {
       style={{ background: t.bg, color: t.color, fontFamily: "Inter" }}>
       {children}
     </span>
+  );
+}
+
+/* ---------------------------------------------------------
+   TOAST — aviso central de sucesso/erro, chamavel de qualquer
+   lugar do arquivo (sem precisar passar prop por todo módulo)
+--------------------------------------------------------- */
+let toastListeners = [];
+function pushToast(type, message) {
+  const t = { id: uid(), type, message };
+  toastListeners.forEach((fn) => fn(t));
+}
+function toastError(message) { pushToast("error", message); }
+function toastSuccess(message) { pushToast("success", message); }
+
+const SHARED_LABELS = {
+  df_clientes: "clientes", df_leads: "leads", df_demandas: "demandas", df_financeiro: "financeiro",
+  df_contratos: "contratos", df_equipe: "equipe", df_orcamentos: "orçamentos",
+  df_precificacao: "precificação", df_activity: "atividade recente",
+};
+
+function ToastHost() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const listener = (t) => {
+      setToasts((prev) => [...prev, t]);
+      setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== t.id)), 5000);
+    };
+    toastListeners.push(listener);
+    return () => { toastListeners = toastListeners.filter((l) => l !== listener); };
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed flex flex-col gap-2" style={{ bottom: 20, right: 20, left: 20, zIndex: 200, alignItems: "flex-end" }}>
+      {toasts.map((t) => (
+        <div key={t.id} className="flex items-start gap-2.5 rounded-lg px-4 py-3 shadow-lg w-full"
+          style={{
+            background: C.surface, maxWidth: 360,
+            border: `1px solid ${t.type === "error" ? "rgba(210,104,91,0.4)" : "rgba(111,191,139,0.4)"}`,
+            boxShadow: "0 12px 28px rgba(0,0,0,0.45)",
+          }}>
+          {t.type === "error"
+            ? <AlertTriangle size={16} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
+            : <CheckCircle2 size={16} color={C.green} style={{ flexShrink: 0, marginTop: 1 }} />}
+          <div className="text-sm flex-1" style={{ color: C.text, fontFamily: "Inter" }}>{t.message}</div>
+          <button onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))} style={{ color: C.textFaint, flexShrink: 0 }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1039,9 +1092,10 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
   const groups = ["A iniciar", "Criando", "Enviar pra aprovacao", "Em aprovacao", "Alteracao", "Entregue"];
 
   const add = () => {
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) { toastError("Dê um título pra demanda antes de salvar."); return; }
     setDemandas([{ id: uid(), ...form }, ...demandas]);
     logActivity("Demandas", "criou", form.title);
+    toastSuccess("Demanda criada.");
     if (form.responsavelId) {
       createNotification({
         userId: form.responsavelId,
@@ -1217,7 +1271,11 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
   const ativos = leads.filter((l) => l.estagio !== "Fechado ganho" && l.estagio !== "Fechado perdido").length;
 
   const addLead = () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim()) { toastError("Informe o nome do lead antes de salvar."); return; }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toastError("Esse e-mail não parece válido — confira antes de salvar.");
+      return;
+    }
     const novo = {
       id: uid(), ...form, valorEstimado: Number(form.valorEstimado) || 0,
       estagio: "Novo lead", criadoEm: new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
@@ -1225,6 +1283,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
     };
     setLeads([novo, ...leads]);
     logActivity("Leads", "cadastrou", novo.nome);
+    toastSuccess("Lead cadastrado.");
     setForm({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
     setOpenNew(false);
   };
@@ -1482,7 +1541,7 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
   const copyDocumento = (e) => {
     const cliente = clientes.find((c) => c.name === e.client);
     if (!cliente?.documento) return;
-    navigator.clipboard?.writeText(cliente.documento).catch(() => {});
+    navigator.clipboard?.writeText(cliente.documento).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."));
     setCopiedId(e.id);
     setTimeout(() => setCopiedId((id) => (id === e.id ? null : id)), 1500);
   };
@@ -1740,7 +1799,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   };
 
   const copyContract = (c) => {
-    navigator.clipboard?.writeText(buildContractText(c)).catch(() => {});
+    navigator.clipboard?.writeText(buildContractText(c)).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."));
     setCopiedId(c.id);
     setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
   };
@@ -1751,7 +1810,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   };
 
   const gerarESalvar = () => {
-    if (!form.titulo.trim()) return;
+    if (!form.titulo.trim()) { toastError("Dê um título ao contrato antes de salvar."); return; }
     const corpoHtml = docRef.current ? docRef.current.innerHTML : buildContractHtml(form);
     const id = editingId || uid();
     const payload = { ...form, valor: Number(form.valor) || 0, corpoHtml };
@@ -1771,6 +1830,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
         : [{ id: uid(), date: hoje, notaEmitida: false, ...base }, ...financeiro.entradas];
       setFinanceiro({ ...financeiro, entradas: novasEntradas });
     }
+    toastSuccess(editingId ? "Contrato atualizado." : "Contrato gerado e salvo.");
     resetForm();
     setOpen(false);
   };
@@ -2276,14 +2336,14 @@ function FeedModule({ equipe, currentUser }) {
       : [...post.reacoes[tipoReacao], currentUser.id];
     const novasReacoes = { ...post.reacoes, [tipoReacao]: novaLista };
     setPosts(posts.map((p) => (p.id === post.id ? { ...p, reacoes: novasReacoes } : p)));
-    updatePost(post.id, { reacoes: novasReacoes }).catch(() => {});
+    updatePost(post.id, { reacoes: novasReacoes }).catch(() => toastError("Não deu pra registrar sua reação. Tente de novo."));
   };
 
   const addComentario = async (post, texto) => {
     const comentario = { id: uid(), autorId: currentUser.id, autorNome: currentUser.nome, texto, criadoEm: new Date().toISOString() };
     const novaLista = [...post.comentarios, comentario];
     setPosts(posts.map((p) => (p.id === post.id ? { ...p, comentarios: novaLista } : p)));
-    updatePost(post.id, { comentarios: novaLista }).catch(() => {});
+    updatePost(post.id, { comentarios: novaLista }).catch(() => toastError("Não deu pra salvar o comentário. Tente de novo."));
 
     const mencionados = extrairMencoes(texto, equipe).filter((u) => u.id !== currentUser.id);
     mencionados.forEach((u) => {
@@ -2298,7 +2358,7 @@ function FeedModule({ equipe, currentUser }) {
 
   const remove = (id) => {
     setPosts(posts.filter((p) => p.id !== id));
-    deletePost(id).catch(() => {});
+    deletePost(id).catch(() => toastError("Não deu pra excluir o post. Tente de novo."));
   };
 
   const iniciaisUser = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
@@ -2565,7 +2625,7 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
   const removeVideo = (idx) => setForm({ ...form, videos: form.videos.filter((_, i) => i !== idx) });
 
   const save = async () => {
-    if (!form.cliente.nome.trim()) return;
+    if (!form.cliente.nome.trim()) { toastError("Informe o nome do cliente antes de salvar."); return; }
     setSaving(true);
     setLinkWarning("");
 
@@ -2585,11 +2645,13 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
         const saved = await updateOrcamento(editingId, payload);
         setOrcamentos(orcamentos.map((o) => (o.id === editingId ? saved : o)));
         setSavedLink(`${window.location.origin}/orcamento/${editingId}`);
+        toastSuccess("Orçamento atualizado.");
       } else {
         const saved = await createOrcamento(payload);
         setOrcamentos([saved, ...orcamentos]);
         setEditingId(saved.id);
         setSavedLink(`${window.location.origin}/orcamento/${saved.id}`);
+        toastSuccess("Orçamento salvo.");
       }
     } catch {
       const localId = editingId || uid();
@@ -2609,17 +2671,17 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
   };
 
   const copyLink = (id) => {
-    navigator.clipboard.writeText(`${window.location.origin}/orcamento/${id}`).catch(() => {});
+    navigator.clipboard.writeText(`${window.location.origin}/orcamento/${id}`).catch(() => toastError("Não deu pra copiar o link. Selecione e copie manualmente."));
   };
 
   const remove = (id) => {
     setOrcamentos(orcamentos.filter((o) => o.id !== id));
-    deleteOrcamento(id).catch(() => {});
+    deleteOrcamento(id).catch(() => toastError("Não deu pra excluir o orçamento no servidor. Tente de novo."));
   };
 
   const moverStatus = (orc, novoStatus) => {
     setOrcamentos(orcamentos.map((o) => (o.id === orc.id ? { ...o, status: novoStatus } : o)));
-    updateOrcamento(orc.id, { ...orc, status: novoStatus }).catch(() => {});
+    updateOrcamento(orc.id, { ...orc, status: novoStatus }).catch(() => toastError("Não deu pra mover o orçamento de status. Tente de novo."));
   };
 
   if (view === "builder") {
@@ -2737,7 +2799,7 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
         {savedLink && (
           <div className="mt-4 flex items-center gap-2 flex-wrap p-3 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
             <span className="text-xs flex-1 min-w-[200px]" style={{ color: C.textDim, fontFamily: "Inter" }}>{savedLink}</span>
-            <button onClick={() => navigator.clipboard.writeText(savedLink).catch(() => {})}
+            <button onClick={() => navigator.clipboard.writeText(savedLink).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."))}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
               <Copy size={13} />Copiar link
             </button>
@@ -3010,16 +3072,18 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
   };
 
   const save = () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { toastError("Informe o nome do cliente antes de salvar."); return; }
     const servicos = form.servicos.split(",").map((s) => s.trim()).filter(Boolean);
     if (editingId) {
       setClientes(clientes.map((c) => (c.id === editingId
         ? { ...c, name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim() }
         : c)));
       logActivity("Clientes", "editou", form.name);
+      toastSuccess("Cliente atualizado.");
     } else {
       setClientes([{ id: uid(), name: form.name, recorrencia: form.recorrencia, status: form.status, since: form.since.trim() || "—", servicos, equipeIds: form.equipeIds, documento: form.documento.trim(), progress: { done: 0, total: 0 } }, ...clientes]);
       logActivity("Clientes", "cadastrou", form.name);
+      toastSuccess("Cliente cadastrado.");
     }
     resetForm();
     setOpen(false);
@@ -3033,7 +3097,7 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
 
   const copyDoc = (c) => {
     if (!c.documento) return;
-    navigator.clipboard?.writeText(c.documento).catch(() => {});
+    navigator.clipboard?.writeText(c.documento).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."));
     setCopiedId(c.id);
     setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
   };
@@ -3369,10 +3433,12 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
   };
 
   const save = async () => {
-    if (!form.nome.trim() || !form.email.trim()) return;
+    if (!form.nome.trim() || !form.email.trim()) { toastError("Preencha nome e e-mail antes de salvar."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { toastError("Esse e-mail não parece válido — confira antes de salvar."); return; }
     if (editingId) {
       let senhaFields = {};
       if (form.senha.trim()) {
+        if (form.senha.trim().length < 6) { toastError("A senha precisa ter pelo menos 6 caracteres."); return; }
         const { hash, salt } = await hashPassword(form.senha.trim());
         senhaFields = { senhaHash: hash, senhaSalt: salt };
       }
@@ -3380,11 +3446,14 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
         ? { ...m, nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, ...senhaFields }
         : m)));
       logActivity("Acesso", "editou", form.nome);
+      toastSuccess("Funcionário atualizado.");
     } else {
-      if (!form.senha.trim()) return;
+      if (!form.senha.trim()) { toastError("Defina uma senha inicial pra esse funcionário."); return; }
+      if (form.senha.trim().length < 6) { toastError("A senha precisa ter pelo menos 6 caracteres."); return; }
       const { hash, salt } = await hashPassword(form.senha.trim());
       setEquipe([...equipe, { id: uid(), nome: form.nome, email: form.email, papel: form.papel, modulos: form.modulos, senhaHash: hash, senhaSalt: salt }]);
       logActivity("Acesso", "cadastrou", form.nome);
+      toastSuccess("Funcionário cadastrado.");
     }
     setForm(emptyMembroForm());
     setEditingId(null);
@@ -3627,6 +3696,7 @@ export default function DieselFilmsOS() {
         backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
       }}>
         <style>{FONTS}</style>
+        <ToastHost />
         <MobileTopBar user={currentUser} onLogout={logout} />
         <div className="px-4 py-5" style={{ paddingBottom: 90 }}>
           {modules}
@@ -3643,6 +3713,7 @@ export default function DieselFilmsOS() {
       backgroundSize: "cover", backgroundPosition: "top", backgroundRepeat: "no-repeat",
     }}>
       <style>{FONTS}</style>
+      <ToastHost />
       <Sidebar active={activeSafe} setActive={setActive} user={currentUser} allowedNav={allowedNav} onLogout={logout} equipe={equipe} setEquipe={setEquipe} />
       <div className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
