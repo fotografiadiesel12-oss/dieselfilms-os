@@ -220,10 +220,55 @@ const seedEquipe = () => ([
 --------------------------------------------------------- */
 const SHARED_POLL_MS = 15000;
 
+// Mescla uma escrita concorrente por id, em vez de sobrescrever o array
+// inteiro do servidor com a copia local (que pode estar desatualizada se
+// outra pessoa mexeu em outro registro nesse meio tempo):
+// - item que EU editei/adicionei/removi localmente -> minha versão vale
+// - item que eu não toquei -> usa a versão mais recente do servidor (pega
+//   a edição de quem mexeu nele enquanto eu estava com a tela aberta), e
+//   some se outra pessoa apagou
+// - item que apareceu no servidor sem eu conhecer (outra pessoa adicionou
+//   concorrentemente) -> preservado, entra no topo
+function mergeArrayWrite(serverArr, base, current) {
+  const baseMap = new Map(base.map((x) => [x.id, x]));
+  const serverMap = new Map(serverArr.map((x) => [x.id, x]));
+  const currentIds = new Set(current.map((x) => x.id));
+
+  const wasEditedByMe = (item) => {
+    const prev = baseMap.get(item.id);
+    return !prev || JSON.stringify(prev) !== JSON.stringify(item);
+  };
+
+  const result = current
+    .filter((item) => wasEditedByMe(item) || serverMap.has(item.id))
+    .map((item) => (wasEditedByMe(item) ? item : serverMap.get(item.id)));
+
+  const foreignNew = serverArr.filter((x) => !baseMap.has(x.id) && !currentIds.has(x.id));
+  return [...foreignNew, ...result];
+}
+
+// mesma ideia pra um objeto com listas dentro (ex: financeiro = { metaMes,
+// faturamentoMensal, entradas: [], saidas: [] }) -- mescla so os campos que
+// sao listas de itens com id, o resto (numeros/config) usa o valor local.
+function hasMergeableArrayFields(obj, other) {
+  return obj && other && typeof obj === "object" && typeof other === "object" && !Array.isArray(obj) && !Array.isArray(other)
+    && Object.keys(obj).some((k) => Array.isArray(obj[k]) && Array.isArray(other[k]));
+}
+function mergeObjectArrayFields(serverObj, base, current) {
+  const merged = { ...current };
+  for (const k of Object.keys(current)) {
+    if (Array.isArray(current[k]) && Array.isArray(base?.[k]) && Array.isArray(serverObj?.[k])) {
+      merged[k] = mergeArrayWrite(serverObj[k], base[k], current[k]);
+    }
+  }
+  return merged;
+}
+
 function useSharedState(key, seedFn) {
   const [value, setValue] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const skipNextWrite = useRef(false);
+  const syncedRef = useRef(null); // ultimo valor que sabemos bater com o servidor
 
   useEffect(() => {
     let cancelled = false;
@@ -232,12 +277,16 @@ function useSharedState(key, seedFn) {
       try {
         const res = await window.storage.get(key, true);
         if (cancelled) return;
+        const parsed = res ? JSON.parse(res.value) : seedFn();
+        syncedRef.current = parsed;
         if (isPoll) skipNextWrite.current = true;
-        setValue(res ? JSON.parse(res.value) : seedFn());
+        setValue(parsed);
         setLoaded(true);
       } catch {
         if (!cancelled && !isPoll) {
-          setValue(seedFn());
+          const seeded = seedFn();
+          syncedRef.current = seeded;
+          setValue(seeded);
           setLoaded(true);
         }
       }
@@ -264,9 +313,44 @@ function useSharedState(key, seedFn) {
   useEffect(() => {
     if (!loaded) return;
     if (skipNextWrite.current) { skipNextWrite.current = false; return; }
-    window.storage.set(key, JSON.stringify(value), true).catch(() => {
-      toastError(`Não deu pra salvar a alteração em ${SHARED_LABELS[key] || key} — verifique sua internet e tente de novo.`);
-    });
+
+    const base = syncedRef.current;
+    const isArrayShape = Array.isArray(value) && Array.isArray(base);
+    const isObjectWithArrays = !isArrayShape && hasMergeableArrayFields(value, base);
+
+    (async () => {
+      try {
+        if (isArrayShape || isObjectWithArrays) {
+          // busca o estado mais recente do servidor antes de escrever, pra
+          // não sobrescrever uma mudança concorrente de outra pessoa com um
+          // snapshot local que já ficou velho
+          const res = await window.storage.get(key, true);
+          if (!res || res.value == null) {
+            await window.storage.set(key, JSON.stringify(value), true);
+            syncedRef.current = value;
+            return;
+          }
+          const serverVal = JSON.parse(res.value);
+          let merged = value;
+          if (isArrayShape && Array.isArray(serverVal)) {
+            merged = mergeArrayWrite(serverVal, base, value);
+          } else if (isObjectWithArrays && hasMergeableArrayFields(serverVal, value)) {
+            merged = mergeObjectArrayFields(serverVal, base, value);
+          }
+          await window.storage.set(key, JSON.stringify(merged), true);
+          syncedRef.current = merged;
+          if (JSON.stringify(merged) !== JSON.stringify(value)) {
+            skipNextWrite.current = true;
+            setValue(merged);
+          }
+        } else {
+          await window.storage.set(key, JSON.stringify(value), true);
+          syncedRef.current = value;
+        }
+      } catch {
+        toastError(`Não deu pra salvar a alteração em ${SHARED_LABELS[key] || key} — verifique sua internet e tente de novo.`);
+      }
+    })();
   }, [value, loaded, key]);
 
   return [value, setValue, loaded];

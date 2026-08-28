@@ -73,3 +73,22 @@ export async function loadEquipeMember(kv, uid) {
   const lista = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw) : [];
   return lista.find((u) => u.id === uid) || null;
 }
+
+// Exige sessão válida E que a pessoa tenha o módulo liberado (ou cargo de
+// gestão, que sempre tem acesso a tudo) -- mesma regra que decide o que
+// aparece na barra lateral do app, aplicada de novo no servidor pra ninguém
+// alterar um módulo que não devia só chamando a API direto.
+export async function requireModule(req, res, kv, modulo) {
+  const session = requireSession(req, res);
+  if (!session) return null;
+  const member = await loadEquipeMember(kv, session.uid);
+  if (!member) {
+    res.status(403).json({ error: "Conta não encontrada na equipe." });
+    return null;
+  }
+  if (!CARGOS_GESTAO.includes(member.papel) && !(member.modulos || []).includes(modulo)) {
+    res.status(403).json({ error: "Sem permissão pra alterar esse módulo." });
+    return null;
+  }
+  return session;
+}

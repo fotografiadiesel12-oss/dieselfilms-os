@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { requireSession } from "../_lib/session.js";
+import { requireModule } from "../_lib/session.js";
 
 export default async function handler(req, res) {
   const { id } = req.query;
@@ -16,8 +16,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  // editar/excluir só a equipe -- exige sessão.
-  if (!requireSession(req, res)) return;
+  // editar/excluir só quem tem o módulo Orçamentos liberado.
+  if (!(await requireModule(req, res, kv, "orcamentos"))) return;
 
   if (req.method === "PUT") {
     const existing = await kv.get(key);

@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { requireSession } from "../_lib/session.js";
+import { requireModule } from "../_lib/session.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,8 +7,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  // só a equipe cria orçamento -- o link público (GET por id) é só leitura.
-  if (!requireSession(req, res)) return;
+  // só quem tem o módulo Orçamentos liberado cria orçamento -- o link
+  // público (GET por id) é só leitura.
+  if (!(await requireModule(req, res, kv, "orcamentos"))) return;
 
   const body = req.body || {};
   const id = crypto.randomUUID();
