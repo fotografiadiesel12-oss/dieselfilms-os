@@ -1,3 +1,5 @@
+import { authHeaders } from "./authHeaders.js";
+
 async function request(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) {
@@ -8,13 +10,13 @@ async function request(path, options) {
 }
 
 export function listNotifications(userId) {
-  return request(`/api/notifications?userId=${encodeURIComponent(userId)}`);
+  return request(`/api/notifications?userId=${encodeURIComponent(userId)}`, { headers: authHeaders() });
 }
 
 export function createNotification(data) {
   return request("/api/notifications", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 }
@@ -22,7 +24,7 @@ export function createNotification(data) {
 export function markNotificationRead(id) {
   return request(`/api/notifications/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ lida: true }),
   });
 }

@@ -7,13 +7,10 @@
 // shared=false -> fica só no navegador de cada aparelho (localStorage), usado
 //                 para coisas como sessão de login e "lembrar meu login".
 
+import { authHeaders } from "./lib/authHeaders.js";
+
 function fullKey(key) {
   return `dieselfilms-os:${key}`;
-}
-
-function authHeaders() {
-  const token = window.localStorage.getItem(fullKey("df_token"));
-  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function kvGet(key) {

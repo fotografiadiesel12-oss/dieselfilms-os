@@ -10,8 +10,17 @@ export default async function handler(req, res) {
   }
 
   const { email, senha } = req.body || {};
-  if (!email || !senha) {
+  if (typeof email !== "string" || typeof senha !== "string" || !email.trim() || !senha || email.length > 200 || senha.length > 200) {
     res.status(400).json({ error: "Informe e-mail e senha." });
+    return;
+  }
+
+  // trava por tentativas -- evita força bruta na senha de alguém da equipe
+  const attemptsKey = `login_attempts:${email.trim().toLowerCase()}`;
+  const attempts = await kv.incr(attemptsKey);
+  if (attempts === 1) await kv.expire(attemptsKey, 15 * 60);
+  if (attempts > 10) {
+    res.status(429).json({ error: "Muitas tentativas. Aguarde alguns minutos e tente de novo." });
     return;
   }
 
@@ -47,6 +56,8 @@ export default async function handler(req, res) {
     res.status(401).json({ error: "E-mail ou senha incorretos." });
     return;
   }
+
+  await kv.del(attemptsKey);
 
   const token = signSession({ uid: user.id });
   const { senha: _s, senhaHash: _h, senhaSalt: _salt, ...safeUser } = user;

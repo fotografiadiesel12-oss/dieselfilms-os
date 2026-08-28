@@ -5,6 +5,8 @@
 // (sem KV conectado), essas chamadas rejeitam e quem chamar deve tratar
 // o erro sem travar o restante do módulo.
 
+import { authHeaders } from "./authHeaders.js";
+
 async function request(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) {
@@ -15,10 +17,12 @@ async function request(path, options) {
   return res.json();
 }
 
+// Cria/edita/exclui exigem sessão -- só a equipe mexe no orçamento. Ler por id
+// (getOrcamento) fica público de propósito: é o link que vai pro cliente.
 export function createOrcamento(data) {
   return request("/api/orcamentos", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 }
@@ -30,11 +34,11 @@ export function getOrcamento(id) {
 export function updateOrcamento(id, data) {
   return request(`/api/orcamentos/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 }
 
 export function deleteOrcamento(id) {
-  return request(`/api/orcamentos/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return request(`/api/orcamentos/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders() });
 }

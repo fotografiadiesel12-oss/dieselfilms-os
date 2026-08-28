@@ -62,3 +62,14 @@ export function pbkdf2Hex(senha, saltHex) {
 export function randomSaltHex() {
   return crypto.randomBytes(16).toString("hex");
 }
+
+export const CARGOS_GESTAO = ["Dono", "Sócio", "Admin"];
+
+// Busca o registro da equipe correspondente à sessão -- usado pelas rotas que
+// precisam saber o cargo (ex: só quem gerencia pode excluir o post de outra
+// pessoa) ou o nome de quem fez a ação, sem confiar no que o cliente mandou.
+export async function loadEquipeMember(kv, uid) {
+  const raw = await kv.get("df_shared:df_equipe");
+  const lista = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw) : [];
+  return lista.find((u) => u.id === uid) || null;
+}

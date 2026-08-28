@@ -1,3 +1,5 @@
+import { authHeaders } from "./authHeaders.js";
+
 async function request(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) {
@@ -9,13 +11,13 @@ async function request(path, options) {
 }
 
 export function listPosts() {
-  return request("/api/feed");
+  return request("/api/feed", { headers: authHeaders() });
 }
 
 export function createPost(data) {
   return request("/api/feed", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 }
@@ -23,11 +25,11 @@ export function createPost(data) {
 export function updatePost(id, data) {
   return request(`/api/feed/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 }
 
 export function deletePost(id) {
-  return request(`/api/feed/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return request(`/api/feed/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders() });
 }

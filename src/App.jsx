@@ -3198,7 +3198,7 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
           <div className="text-sm font-medium mb-1" style={{ color: C.text, fontFamily: "Inter" }}>Backup dos dados</div>
           <p className="text-xs mb-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>
             Baixa um arquivo com os dados de Clientes, Leads, Demandas, Financeiro, Contratos, Acesso, Orçamentos e Precificação.
-            Guarde em lugar seguro — o arquivo inclui a senha da equipe em formato protegido (hash), não em texto puro, mas ainda é informação sensível.
+            A senha de cada pessoa nunca sai do servidor, nem em formato protegido — não é incluída no arquivo. Ao restaurar, quem já existir na equipe mantém a senha atual normalmente.
           </p>
           <div className="flex items-center gap-3 flex-wrap">
             <PrimaryBtn onClick={exportarBackup} disabled={backupBusy}>
