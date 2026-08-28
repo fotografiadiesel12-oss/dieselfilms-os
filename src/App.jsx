@@ -22,6 +22,7 @@ import { listNotifications, createNotification, markNotificationRead } from "./l
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from "@dnd-kit/core";
 
 /* ---------------------------------------------------------
    TOKENS — DieselFilms: preto de sala de projeção + dourado
@@ -320,6 +321,7 @@ const statusLabel = {
 };
 const clientTone = { Ativo: "green", Prospect: "amber", Pausado: "neutral", Encerrado: "neutral" };
 const contratoTone = { Rascunho: "amber", Enviado: "blue", Assinado: "green" };
+const CONTRATO_STATUSES = ["Rascunho", "Enviado", "Assinado"];
 const orcamentoTone = { Rascunho: "neutral", Enviado: "blue", Visualizado: "gold", Aprovado: "green", Recusado: "red" };
 
 function IconBtn({ onClick, children, title }) {
@@ -356,6 +358,99 @@ function Modal({ title, onClose, children, wide }) {
         {children}
       </div>
     </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   KANBAN — quadro estilo Trello reutilizado em Leads, Demandas,
+   Orçamentos e Contratos (arrastar com mouse ou toque via dnd-kit)
+--------------------------------------------------------- */
+function ViewToggle({ view, setView, options }) {
+  return (
+    <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0" style={{ border: `1px solid ${C.border}` }}>
+      {options.map((o) => (
+        <button key={o.id} onClick={() => setView(o.id)} className="p-2"
+          style={{ background: view === o.id ? C.surfaceHover : "transparent", color: view === o.id ? C.text : C.textFaint }}
+          title={o.title}>
+          <o.icon size={15} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function KanbanCard({ id, onClick, children }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} onClick={onClick}
+      className="rounded-lg p-3 text-left"
+      style={{
+        background: C.surface, border: `1px solid ${C.border}`, touchAction: "none",
+        cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.3 : 1,
+      }}>
+      {children}
+    </div>
+  );
+}
+
+function KanbanColumn({ id, label, tone, count, isOver, emptyLabel, children }) {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div className="flex-shrink-0" style={{ width: 272 }}>
+      <div className="flex items-center justify-between mb-3 px-1">
+        <Pill tone={tone}>{label}</Pill>
+        <span className="text-xs" style={{ color: C.textFaint }}>{count}</span>
+      </div>
+      <div ref={setNodeRef} className="flex flex-col gap-2 rounded-xl"
+        style={{ minHeight: 60, padding: 6, background: isOver ? C.surfaceHover : "transparent", transition: "background 0.12s" }}>
+        {count === 0 && (
+          <div className="text-xs rounded-lg p-3 text-center" style={{ color: C.textFaint, background: C.surface, border: `1px dashed ${C.border}` }}>{emptyLabel}</div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// columns: [{id, label, tone}]. items: array de objetos quaisquer.
+// getColumnId(item) -> id da coluna atual. getId(item) -> id unico do item.
+// onMove(item, novoColId) chamado quando o item é solto numa coluna diferente.
+// renderCard(item) -> conteudo do card. onCardClick(item) opcional.
+function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, onCardClick, emptyLabel = "Vazio" }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [overId, setOverId] = useState(null);
+  const [activeId, setActiveId] = useState(null);
+
+  const grouped = columns.map((col) => ({ ...col, items: items.filter((it) => getColumnId(it) === col.id) }));
+  const activeItem = activeId != null ? items.find((it) => getId(it) === activeId) : null;
+
+  return (
+    <DndContext sensors={sensors}
+      onDragStart={(e) => setActiveId(e.active.id)}
+      onDragOver={(e) => setOverId(e.over ? e.over.id : null)}
+      onDragEnd={(e) => {
+        setActiveId(null); setOverId(null);
+        const { active, over } = e;
+        if (!over) return;
+        const item = items.find((it) => getId(it) === active.id);
+        if (item && getColumnId(item) !== over.id) onMove(item, over.id);
+      }}
+      onDragCancel={() => { setActiveId(null); setOverId(null); }}>
+      <div className="flex gap-4 overflow-x-auto thin-scroll pb-2">
+        {grouped.map((col) => (
+          <KanbanColumn key={col.id} id={col.id} label={col.label} tone={col.tone} count={col.items.length} isOver={overId === col.id} emptyLabel={emptyLabel}>
+            {col.items.map((item) => (
+              <KanbanCard key={getId(item)} id={getId(item)} onClick={() => onCardClick && onCardClick(item)}>
+                {renderCard(item)}
+              </KanbanCard>
+            ))}
+          </KanbanColumn>
+        ))}
+      </div>
+      <DragOverlay>
+        {activeItem ? <div style={{ width: 272, borderRadius: 8, boxShadow: "0 16px 32px rgba(0,0,0,0.55)" }}>{renderCard(activeItem)}</div> : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -974,6 +1069,10 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
     const d = demandas.find((x) => x.id === id);
     if (d) logActivity("Demandas", "moveu", `${d.title} → ${statusLabel[novoStatus] || novoStatus}`);
   };
+  const moverStatus = (d, novoStatus) => {
+    setDemandas(demandas.map((x) => (x.id === d.id ? { ...x, status: novoStatus } : x)));
+    logActivity("Demandas", "moveu", `${d.title} → ${statusLabel[novoStatus] || novoStatus}`);
+  };
 
   const clientesComDemanda = [...new Set(demandas.map((d) => d.client).filter(Boolean))];
   const visiveis = clienteFiltro ? demandas.filter((d) => d.client === clienteFiltro) : demandas;
@@ -992,14 +1091,10 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
             {clientesComDemanda.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-          <button onClick={() => setView("lista")} className="p-2" style={{ background: view === "lista" ? C.surfaceHover : "transparent", color: view === "lista" ? C.text : C.textFaint }} title="Lista">
-            <List size={15} />
-          </button>
-          <button onClick={() => setView("quadro")} className="p-2" style={{ background: view === "quadro" ? C.surfaceHover : "transparent", color: view === "quadro" ? C.text : C.textFaint }} title="Quadro">
-            <LayoutGrid size={15} />
-          </button>
-        </div>
+        <ViewToggle view={view} setView={setView} options={[
+          { id: "lista", icon: List, title: "Lista" },
+          { id: "quadro", icon: LayoutGrid, title: "Quadro" },
+        ]} />
       </div>
 
       {view === "lista" && (
@@ -1041,35 +1136,32 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
       )}
 
       {view === "quadro" && (
-        <div className="flex gap-4 overflow-x-auto thin-scroll pb-2">
-          {groups.map((g) => {
-            const items = visiveis.filter((d) => d.status === g);
-            return (
-              <div key={g} className="flex-shrink-0" style={{ width: 260 }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Pill tone={statusTone[g]}>{statusLabel[g]}</Pill>
-                  <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {items.length === 0 && <div className="text-xs rounded-lg p-3" style={{ color: C.textFaint, background: C.surface, border: `1px dashed ${C.border}` }}>Vazio</div>}
-                  {items.map((d) => (
-                    <button key={d.id} onClick={() => cycle(d.id)} title="Avançar status"
-                      className="text-left rounded-lg p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                      <div className="text-sm mb-1.5" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
-                      <div className="text-xs mb-2" style={{ color: C.textFaint }}>
-                        {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
-                        <span className="text-xs" style={{ color: C.textFaint }}>{d.date}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+        <KanbanBoard
+          columns={groups.map((g) => ({ id: g, label: statusLabel[g], tone: statusTone[g] }))}
+          items={visiveis}
+          getColumnId={(d) => d.status}
+          getId={(d) => d.id}
+          onMove={(d, novoStatus) => moverStatus(d, novoStatus)}
+          emptyLabel="Vazio"
+          renderCard={(d) => (
+            <>
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
+                <button onClick={(e) => { e.stopPropagation(); remove(d.id); }} title="Remover"
+                  style={{ color: C.textFaint, flexShrink: 0 }}>
+                  <Trash2 size={13} />
+                </button>
               </div>
-            );
-          })}
-        </div>
+              <div className="text-xs mb-2" style={{ color: C.textFaint }}>
+                {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
+              </div>
+              <div className="flex items-center justify-between">
+                <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
+                <span className="text-xs" style={{ color: C.textFaint }}>{d.date}</span>
+              </div>
+            </>
+          )}
+        />
       )}
 
       {open && (
@@ -1107,6 +1199,7 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
 --------------------------------------------------------- */
 function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () => {} }) {
   const [openNew, setOpenNew] = useState(false);
+  const [view, setView] = useState("quadro");
   const [selectedId, setSelectedId] = useState(null);
   const [noteText, setNoteText] = useState("");
   const [form, setForm] = useState({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
@@ -1170,7 +1263,15 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
   return (
     <div>
       <ModuleHeader title="Leads" sub="Prospecção e atendimento de novos clientes"
-        right={<PrimaryBtn onClick={() => setOpenNew(true)}><Plus size={16} />Novo lead</PrimaryBtn>} />
+        right={
+          <div className="flex items-center gap-2">
+            <ViewToggle view={view} setView={setView} options={[
+              { id: "quadro", icon: LayoutGrid, title: "Quadro" },
+              { id: "lista", icon: List, title: "Lista" },
+            ]} />
+            <PrimaryBtn onClick={() => setOpenNew(true)}><Plus size={16} />Novo lead</PrimaryBtn>
+          </div>
+        } />
 
       <div className="flex gap-4 flex-wrap mb-6">
         <StatCard icon={Radar} label="Leads ativos" value={ativos} sub={`${leads.length} no total`} />
@@ -1179,6 +1280,52 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
         <StatCard icon={ArrowRight} label="Taxa de conversão" value={`${taxaConversao}%`} sub={`${ganhos.length} ganhos / ${perdidos.length} perdidos`} />
       </div>
 
+      {view === "quadro" && (
+        <KanbanBoard
+          columns={ESTAGIOS.map((est) => ({ id: est, label: estagioLabel[est], tone: estagioTone[est] }))}
+          items={leads}
+          getColumnId={(l) => l.estagio}
+          getId={(l) => l.id}
+          onMove={(l, novoEstagio) => setEstagio(l.id, novoEstagio)}
+          onCardClick={(l) => setSelectedId(l.id)}
+          emptyLabel="Sem leads aqui"
+          renderCard={(l) => (
+            <>
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>
+                  {l.nome}{l.convertido && <span style={{ color: C.green }}> · cliente</span>}
+                </div>
+              </div>
+              {(l.empresa || l.origem) && (
+                <div className="text-xs mb-2" style={{ color: C.textFaint }}>{l.empresa ? `${l.empresa} · ` : ""}{l.origem}</div>
+              )}
+              <div className="flex flex-col gap-1 mb-2">
+                {l.telefone && (
+                  <a href={`tel:${l.telefone}`} onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1.5 text-xs" style={{ color: C.textDim }}>
+                    <Phone size={11} />{l.telefone}
+                  </a>
+                )}
+                {l.email && (
+                  <a href={`mailto:${l.email}`} onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1.5 text-xs truncate" style={{ color: C.textDim }}>
+                    <Mail size={11} />{l.email}
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {l.temperatura && <Pill tone={temperaturaTone[l.temperatura]}>{l.temperatura}</Pill>}
+                  <span className="text-xs truncate" style={{ color: C.textFaint }}>{l.responsavel}</span>
+                </div>
+                <span className="text-sm font-medium flex-shrink-0" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(l.valorEstimado)}</span>
+              </div>
+            </>
+          )}
+        />
+      )}
+
+      {view === "lista" && (
       <div className="flex flex-col gap-6">
         {ESTAGIOS.map((est) => {
           const items = leads.filter((l) => l.estagio === est);
@@ -1217,6 +1364,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
         })}
         {leads.length === 0 && <div className="text-sm" style={{ color: C.textFaint }}>Nenhum lead ainda. Cadastre o primeiro contato acima.</div>}
       </div>
+      )}
 
       {openNew && (
         <Modal title="Novo lead" onClose={() => setOpenNew(false)}>
@@ -1515,6 +1663,7 @@ const baixarContratoDoc = (titulo, html) => {
 
 function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile, logActivity = () => {} }) {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState("quadro");
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyContratoForm());
   const [copiedId, setCopiedId] = useState(null);
@@ -1585,6 +1734,11 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     if (c) logActivity("Contratos", "excluiu", c.titulo);
   };
 
+  const moverStatus = (c, novoStatus) => {
+    setContratos(contratos.map((x) => (x.id === c.id ? { ...x, status: novoStatus } : x)));
+    logActivity("Contratos", "moveu", `${c.titulo} → ${novoStatus}`);
+  };
+
   const copyContract = (c) => {
     navigator.clipboard?.writeText(buildContractText(c)).catch(() => {});
     setCopiedId(c.id);
@@ -1624,8 +1778,47 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   return (
     <div>
       <ModuleHeader title="Contratos" sub={`${contratos.length} contratos · ${brl(totalMes)} em valor total`}
-        right={<PrimaryBtn onClick={startNew}><Plus size={16} />Novo contrato</PrimaryBtn>} />
+        right={
+          <div className="flex items-center gap-2">
+            <ViewToggle view={view} setView={setView} options={[
+              { id: "quadro", icon: LayoutGrid, title: "Quadro" },
+              { id: "lista", icon: List, title: "Lista" },
+            ]} />
+            <PrimaryBtn onClick={startNew}><Plus size={16} />Novo contrato</PrimaryBtn>
+          </div>
+        } />
 
+      {view === "quadro" && (
+        <KanbanBoard
+          columns={CONTRATO_STATUSES.map((s) => ({ id: s, label: s, tone: contratoTone[s] }))}
+          items={contratos}
+          getColumnId={(c) => c.status}
+          getId={(c) => c.id}
+          onMove={(c, novoStatus) => moverStatus(c, novoStatus)}
+          onCardClick={(c) => startEdit(c)}
+          emptyLabel="Sem contratos aqui"
+          renderCard={(c) => (
+            <>
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{c.titulo}</div>
+                <button onClick={(e) => { e.stopPropagation(); remove(c.id); }} title="Remover"
+                  style={{ color: C.textFaint, flexShrink: 0 }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <div className="text-xs mb-2" style={{ color: C.textFaint }}>{c.cliente} · {c.tipo}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(c.valor)}</span>
+                <IconBtn onClick={(e) => { e.stopPropagation(); copyContract(c); }} title={copiedId === c.id ? "Copiado!" : "Copiar texto"}>
+                  <Copy size={13} color={copiedId === c.id ? C.green : undefined} />
+                </IconBtn>
+              </div>
+            </>
+          )}
+        />
+      )}
+
+      {view === "lista" && (
       <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
         {contratos.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum contrato ainda.</div>}
         {contratos.map((c, idx) => (
@@ -1650,6 +1843,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
           </div>
         ))}
       </div>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)" }}>
@@ -2292,6 +2486,7 @@ const ORCAMENTO_STATUSES = ["Rascunho", "Enviado", "Visualizado", "Aprovado", "R
 
 function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setPrecificacao }) {
   const [view, setView] = useState("list");
+  const [subView, setSubView] = useState("quadro");
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("Todos");
   const [form, setForm] = useState(emptyOrcamentoForm());
@@ -2420,6 +2615,11 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
   const remove = (id) => {
     setOrcamentos(orcamentos.filter((o) => o.id !== id));
     deleteOrcamento(id).catch(() => {});
+  };
+
+  const moverStatus = (orc, novoStatus) => {
+    setOrcamentos(orcamentos.map((o) => (o.id === orc.id ? { ...o, status: novoStatus } : o)));
+    updateOrcamento(orc.id, { ...orc, status: novoStatus }).catch(() => {});
   };
 
   if (view === "builder") {
@@ -2648,6 +2848,10 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
       <ModuleHeader title="Orçamentos" sub={`${orcamentos.length} orçamentos · ${brl(valorEmAberto)} em aberto`}
         right={
           <div className="flex items-center gap-2">
+            <ViewToggle view={subView} setView={setSubView} options={[
+              { id: "quadro", icon: LayoutGrid, title: "Quadro" },
+              { id: "lista", icon: List, title: "Lista" },
+            ]} />
             <IconBtn onClick={() => setView("config")} title="Configurar calculadora"><Settings size={16} /></IconBtn>
             <PrimaryBtn onClick={startNew}><Plus size={16} />Novo orçamento</PrimaryBtn>
           </div>
@@ -2659,6 +2863,36 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
         <StatCard icon={CheckCircle2} label="Taxa de aprovação" value={`${taxaAprovacao}%`} sub={`${aprovados} aprovados / ${recusados} recusados`} />
       </div>
 
+      {subView === "quadro" && (
+        <KanbanBoard
+          columns={ORCAMENTO_STATUSES.map((s) => ({ id: s, label: s, tone: orcamentoTone[s] }))}
+          items={orcamentos}
+          getColumnId={(o) => o.status}
+          getId={(o) => o.id}
+          onMove={(o, novoStatus) => moverStatus(o, novoStatus)}
+          onCardClick={(o) => startEdit(o)}
+          emptyLabel="Sem orçamentos aqui"
+          renderCard={(o) => (
+            <>
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{o.titulo}</div>
+                <button onClick={(e) => { e.stopPropagation(); remove(o.id); }} title="Excluir"
+                  style={{ color: C.textFaint, flexShrink: 0 }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <div className="text-xs mb-2" style={{ color: C.textFaint }}>{o.cliente?.nome}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(orcTotal(o))}</span>
+                <IconBtn onClick={(e) => { e.stopPropagation(); copyLink(o.id); }} title="Copiar link"><Copy size={13} /></IconBtn>
+              </div>
+            </>
+          )}
+        />
+      )}
+
+      {subView === "lista" && (
+      <>
       <div className="flex gap-2 mb-5 flex-wrap">
         {["Todos", ...ORCAMENTO_STATUSES].map((s) => (
           <button key={s} onClick={() => setFilter(s)}
@@ -2695,6 +2929,8 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
           </div>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }
