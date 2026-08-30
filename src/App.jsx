@@ -1341,6 +1341,7 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
   const [selectedId, setSelectedId] = useState(null);
   const [noteText, setNoteText] = useState("");
   const [form, setForm] = useState({ nome: "", empresa: "", telefone: "", email: "", origem: "Instagram", valorEstimado: "", responsavel: "", temperatura: "Morno" });
+  const [editForm, setEditForm] = useState(null);
 
   const selected = leads.find((l) => l.id === selectedId) || null;
 
@@ -1385,6 +1386,41 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
     if (l) logActivity("Leads", "moveu", `${l.nome} → ${estagioLabel[estagio] || estagio}`);
   };
   const setTemperatura = (id, temperatura) => setLeads(leads.map((l) => (l.id === id ? { ...l, temperatura } : l)));
+
+  const startEditLead = () => {
+    if (!selected) return;
+    setEditForm({
+      nome: selected.nome || "",
+      empresa: selected.empresa || "",
+      telefone: selected.telefone || "",
+      email: selected.email || "",
+      origem: selected.origem || "Outro",
+      valorEstimado: selected.valorEstimado ?? "",
+      responsavel: selected.responsavel || "",
+    });
+  };
+
+  const saveEditLead = () => {
+    if (!selected || !editForm) return;
+    if (!editForm.nome.trim()) { toastError("Informe o nome do lead antes de salvar."); return; }
+    if (editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) {
+      toastError("Esse e-mail não parece válido — confira antes de salvar.");
+      return;
+    }
+    const atualizado = {
+      ...editForm,
+      nome: editForm.nome.trim(),
+      empresa: editForm.empresa.trim(),
+      telefone: editForm.telefone.trim(),
+      email: editForm.email.trim(),
+      responsavel: editForm.responsavel.trim(),
+      valorEstimado: Number(editForm.valorEstimado) || 0,
+    };
+    setLeads(leads.map((l) => (l.id === selected.id ? { ...l, ...atualizado } : l)));
+    logActivity("Leads", "editou", atualizado.nome);
+    toastSuccess("Lead atualizado.");
+    setEditForm(null);
+  };
 
   const addNota = () => {
     if (!noteText.trim() || !selected) return;
@@ -1538,54 +1574,86 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
       )}
 
       {selected && (
-        <Modal title={selected.nome} onClose={() => setSelectedId(null)}>
-          <div className="flex flex-col gap-1.5 mb-4 text-sm" style={{ fontFamily: "Inter" }}>
-            {selected.empresa && <div style={{ color: C.textDim }}>{selected.empresa}</div>}
-            {selected.telefone && <div className="flex items-center gap-2" style={{ color: C.textDim }}><Phone size={13} />{selected.telefone}</div>}
-            {selected.email && <div className="flex items-center gap-2" style={{ color: C.textDim }}><Mail size={13} />{selected.email}</div>}
-            <div style={{ color: C.textFaint }}>Origem: {selected.origem} · Responsável: {selected.responsavel}</div>
-            <div style={{ color: C.gold, fontWeight: 600 }}>{brl(selected.valorEstimado)}</div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Estágio">
-              <select style={inputStyle} value={selected.estagio} onChange={(e) => setEstagio(selected.id, e.target.value)}>
-                {ESTAGIOS.map((e) => <option key={e} value={e}>{estagioLabel[e]}</option>)}
-              </select>
-            </Field>
-            <Field label="Temperatura">
-              <select style={inputStyle} value={selected.temperatura || "Morno"} onChange={(e) => setTemperatura(selected.id, e.target.value)}>
-                {TEMPERATURAS.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          {selected.estagio === "Fechado ganho" && !selected.convertido && (
-            <button onClick={converterEmCliente}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold mb-4"
-              style={{ background: "rgba(111,191,139,0.14)", color: C.green, fontFamily: "Inter" }}>
-              <CheckCircle2 size={15} />Converter em cliente
-            </button>
-          )}
-
-          <div className="mb-2 text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>Atendimento</div>
-          <div className="flex gap-2 mb-3">
-            <input style={{ ...inputStyle, flex: 1 }} placeholder="Registrar contato ou observação..."
-              value={noteText} onChange={(e) => setNoteText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addNota()} />
-            <button onClick={addNota} className="px-3 rounded-lg" style={{ background: C.gold, color: "#141209" }}>
-              <MessageSquare size={15} />
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-            {selected.notas.length === 0 && <div className="text-xs" style={{ color: C.textFaint }}>Nenhum registro ainda.</div>}
-            {selected.notas.map((n) => (
-              <div key={n.id} className="text-xs rounded-lg p-2.5" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
-                <div style={{ color: C.text, fontFamily: "Inter" }}>{n.texto}</div>
-                <div style={{ color: C.textFaint, marginTop: 3 }}>{n.data}</div>
+        <Modal title={editForm ? "Editar lead" : selected.nome} onClose={() => { setEditForm(null); setSelectedId(null); }}>
+          {editForm ? (
+            <div>
+              <Field label="Nome"><input style={inputStyle} value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} /></Field>
+              <Field label="Empresa (se houver)"><input style={inputStyle} value={editForm.empresa} onChange={(e) => setEditForm({ ...editForm, empresa: e.target.value })} /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Telefone"><input style={inputStyle} value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} /></Field>
+                <Field label="E-mail"><input style={inputStyle} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></Field>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Origem">
+                  <select style={inputStyle} value={editForm.origem} onChange={(e) => setEditForm({ ...editForm, origem: e.target.value })}>
+                    {["Instagram", "Indicação", "Site", "WhatsApp", "Evento", "Outro"].map((o) => <option key={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="Valor estimado (R$)"><input type="number" min="0" step="0.01" style={inputStyle} value={editForm.valorEstimado} onChange={(e) => setEditForm({ ...editForm, valorEstimado: e.target.value })} /></Field>
+              </div>
+              <Field label="Responsável"><input style={inputStyle} value={editForm.responsavel} onChange={(e) => setEditForm({ ...editForm, responsavel: e.target.value })} placeholder="Quem vai atender" /></Field>
+              <div className="flex items-center gap-2 mt-1">
+                <PrimaryBtn onClick={saveEditLead}><Check size={16} />Salvar alterações</PrimaryBtn>
+                <button onClick={() => setEditForm(null)} className="px-4 py-2 rounded-lg text-sm" style={{ color: C.textDim, border: `1px solid ${C.border}` }}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex flex-col gap-1.5 text-sm" style={{ fontFamily: "Inter" }}>
+                  {selected.empresa && <div style={{ color: C.textDim }}>{selected.empresa}</div>}
+                  {selected.telefone && <div className="flex items-center gap-2" style={{ color: C.textDim }}><Phone size={13} />{selected.telefone}</div>}
+                  {selected.email && <div className="flex items-center gap-2" style={{ color: C.textDim }}><Mail size={13} />{selected.email}</div>}
+                  <div style={{ color: C.textFaint }}>Origem: {selected.origem} · Responsável: {selected.responsavel}</div>
+                  <div style={{ color: C.gold, fontWeight: 600 }}>{brl(selected.valorEstimado)}</div>
+                </div>
+                <button onClick={startEditLead} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0"
+                  style={{ color: C.goldBright, border: `1px solid ${C.goldDim}`, background: "rgba(201,162,39,0.08)", fontFamily: "Inter" }}>
+                  <Pencil size={13} />Editar lead
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Estágio">
+                  <select style={inputStyle} value={selected.estagio} onChange={(e) => setEstagio(selected.id, e.target.value)}>
+                    {ESTAGIOS.map((e) => <option key={e} value={e}>{estagioLabel[e]}</option>)}
+                  </select>
+                </Field>
+                <Field label="Temperatura">
+                  <select style={inputStyle} value={selected.temperatura || "Morno"} onChange={(e) => setTemperatura(selected.id, e.target.value)}>
+                    {TEMPERATURAS.map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </Field>
+              </div>
+
+              {selected.estagio === "Fechado ganho" && !selected.convertido && (
+                <button onClick={converterEmCliente}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold mb-4"
+                  style={{ background: "rgba(111,191,139,0.14)", color: C.green, fontFamily: "Inter" }}>
+                  <CheckCircle2 size={15} />Converter em cliente
+                </button>
+              )}
+
+              <div className="mb-2 text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>Atendimento</div>
+              <div className="flex gap-2 mb-3">
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="Registrar contato ou observação..."
+                  value={noteText} onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addNota()} />
+                <button onClick={addNota} className="px-3 rounded-lg" style={{ background: C.gold, color: "#141209" }}>
+                  <MessageSquare size={15} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                {(selected.notas || []).length === 0 && <div className="text-xs" style={{ color: C.textFaint }}>Nenhum registro ainda.</div>}
+                {(selected.notas || []).map((n) => (
+                  <div key={n.id} className="text-xs rounded-lg p-2.5" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+                    <div style={{ color: C.text, fontFamily: "Inter" }}>{n.texto}</div>
+                    <div style={{ color: C.textFaint, marginTop: 3 }}>{n.data}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </Modal>
       )}
     </div>
