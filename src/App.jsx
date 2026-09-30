@@ -12,8 +12,9 @@ import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
 import { createOrcamento, updateOrcamento, deleteOrcamento } from "./lib/orcamentosApi.js";
 import {
-  seedPrecificacao, calcularValorHoraFinal, calcularItemTotal,
-  calcularTotalLiquido, calcularInvestimentoTotal,
+  seedPrecificacao, normalizarPrecificacao, valoresDaPlanilha, calcularValorHora,
+  equipamentoPorHora, valorDoItemDaTabela, calcularItemTotal,
+  calcularInvestimentoTotal, calcularResumoOrcamento,
 } from "./lib/precificacao.js";
 import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
 import { uploadImagem } from "./lib/mediaApi.js";
@@ -2626,23 +2627,323 @@ const emptyOrcamentoForm = () => ({
   status: "Rascunho",
 });
 
-function ItemRow({ item, onChange, onRemove }) {
+// Aceita "1.300,50", "1300,5" e "4.99". Devolve "" pra campo vazio e null
+// pra texto que ainda não é número (ex.: "12,"), que não deve sobrescrever
+// o valor salvo.
+const parseNumBR = (t) => {
+  const s = String(t ?? "").trim().replace(/\s|R\$/g, "");
+  if (!s) return "";
+  let normal = s;
+  if (s.includes(",")) normal = s.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) normal = s.replace(/\./g, "");
+  if (!/^-?\d*\.?\d+$/.test(normal)) return null;
+  return Number(normal);
+};
+const fmtNumBR = (v) => (v === "" || v === null || v === undefined || Number.isNaN(Number(v)) ? "" : String(Number(v)).replace(".", ","));
+
+// Campo numérico com texto local: o usuário digita livre (com vírgula) e o
+// valor numérico só é repassado quando fizer sentido.
+function NumInput({ value, onChange, style, placeholder, title }) {
+  const [text, setText] = useState(fmtNumBR(value));
+  useEffect(() => {
+    const atual = parseNumBR(text);
+    const externo = value === "" || value === null || value === undefined ? "" : Number(value);
+    if (atual !== externo) setText(fmtNumBR(value));
+  }, [value]);
   return (
-    <div className="flex gap-2 items-start mb-2 flex-wrap">
-      <input style={{ ...inputStyle, flex: "2 1 160px" }} placeholder="Descrição" value={item.descricao}
-        onChange={(e) => onChange({ ...item, descricao: e.target.value })} />
-      <input style={{ ...inputStyle, flex: "2 1 160px" }} placeholder="Detalhes (opcional)" value={item.detalhes}
-        onChange={(e) => onChange({ ...item, detalhes: e.target.value })} />
-      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Horas" title="Horas" value={item.horas}
-        onChange={(e) => onChange({ ...item, horas: e.target.value })} />
-      <input type="number" style={{ ...inputStyle, width: 70 }} placeholder="Diárias" title="Diárias" value={item.diarias}
-        onChange={(e) => onChange({ ...item, diarias: e.target.value })} />
-      <input type="number" style={{ ...inputStyle, width: 100 }} placeholder="Valor/hora" title="Valor da hora" value={item.valorIndividual}
-        onChange={(e) => onChange({ ...item, valorIndividual: e.target.value })} />
-      <div className="flex items-center px-2 text-sm whitespace-nowrap" style={{ color: C.gold, fontFamily: "Inter", minWidth: 90 }}>
-        {brl(calcularItemTotal(item))}
+    <input inputMode="decimal" style={style} placeholder={placeholder} title={title} value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = parseNumBR(e.target.value);
+        if (n !== null) onChange(n);
+      }} />
+  );
+}
+
+function PercentInput({ value, onChange, style }) {
+  const pct = Math.round((Number(value) || 0) * 1000000) / 10000;
+  return <NumInput style={style} value={pct} onChange={(v) => onChange((Number(v) || 0) / 100)} />;
+}
+
+const miniLabel = { color: C.textFaint, fontFamily: "Inter", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase" };
+
+function CalcBloco({ titulo, subtitulo, total, totalHora, children, onAdd, addLabel = "Adicionar" }) {
+  return (
+    <div className="rounded-xl p-4 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{titulo}</div>
+          {subtitulo && <div className="text-xs mt-0.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>{subtitulo}</div>}
+        </div>
+        {total !== undefined && (
+          <div className="text-right">
+            <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{total}</div>
+            <div className="text-xs" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(totalHora)} por hora</div>
+          </div>
+        )}
       </div>
-      <IconBtn onClick={onRemove} title="Remover"><Trash2 size={14} /></IconBtn>
+      {children}
+      {onAdd && (
+        <button type="button" onClick={onAdd} className="flex items-center gap-1.5 text-xs mt-1" style={{ color: C.gold, fontFamily: "Inter" }}>
+          <Plus size={14} />{addLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Gastos pessoais, custos da empresa e assinaturas: descrição + valor mensal.
+function CustoMensalLista({ titulo, subtitulo, itens, horas, onChange, placeholder }) {
+  const total = itens.reduce((s, it) => s + (Number(it.valorMensal) || 0), 0);
+  const set = (idx, patch) => onChange(itens.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  return (
+    <CalcBloco titulo={titulo} subtitulo={subtitulo} total={`${brl(total)}/mês`} totalHora={total / horas}
+      onAdd={() => onChange([...itens, { id: uid(), descricao: "", valorMensal: "" }])}>
+      {itens.length === 0 && <div className="text-xs mb-2" style={{ color: C.textFaint, fontFamily: "Inter" }}>Nada cadastrado ainda.</div>}
+      {itens.map((it, idx) => (
+        <div key={it.id} className="flex gap-2 items-center mb-2">
+          <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder={placeholder} value={it.descricao || ""}
+            onChange={(e) => set(idx, { descricao: e.target.value })} />
+          <NumInput style={{ ...inputStyle, width: 110 }} placeholder="R$ / mês" title="Valor mensal" value={it.valorMensal}
+            onChange={(v) => set(idx, { valorMensal: v })} />
+          <div className="text-xs text-right hidden sm:block" style={{ color: C.textDim, fontFamily: "Inter", width: 80 }}>
+            {brl((Number(it.valorMensal) || 0) / horas)}/h
+          </div>
+          <IconBtn onClick={() => onChange(itens.filter((_, i) => i !== idx))} title="Remover"><Trash2 size={14} /></IconBtn>
+        </div>
+      ))}
+    </CalcBloco>
+  );
+}
+
+function EquipamentosLista({ itens, horas, onChange }) {
+  const investido = itens.reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
+  const porHora = itens.reduce((s, it) => s + equipamentoPorHora(it, horas), 0);
+  const set = (idx, patch) => onChange(itens.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  return (
+    <CalcBloco titulo="Equipamentos" subtitulo="Quanto custou cada um e em quantos meses quer que ele se pague (payback)"
+      total={`${brl(investido)} investidos`} totalHora={porHora}
+      onAdd={() => onChange([...itens, { id: uid(), descricao: "", valorTotal: "", paybackMeses: 12 }])}>
+      {itens.length === 0 && <div className="text-xs mb-2" style={{ color: C.textFaint, fontFamily: "Inter" }}>Nada cadastrado ainda.</div>}
+      {itens.map((it, idx) => (
+        <div key={it.id} className="flex gap-2 items-center mb-2">
+          <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder="Câmera, lente, drone..." value={it.descricao || ""}
+            onChange={(e) => set(idx, { descricao: e.target.value })} />
+          <NumInput style={{ ...inputStyle, width: 100 }} placeholder="Valor R$" title="Valor pago" value={it.valorTotal}
+            onChange={(v) => set(idx, { valorTotal: v })} />
+          <NumInput style={{ ...inputStyle, width: 64 }} placeholder="Meses" title="Payback em meses" value={it.paybackMeses}
+            onChange={(v) => set(idx, { paybackMeses: v })} />
+          <div className="text-xs text-right hidden sm:block" style={{ color: C.textDim, fontFamily: "Inter", width: 80 }}>
+            {brl(equipamentoPorHora(it, horas))}/h
+          </div>
+          <IconBtn onClick={() => onChange(itens.filter((_, i) => i !== idx))} title="Remover"><Trash2 size={14} /></IconBtn>
+        </div>
+      ))}
+    </CalcBloco>
+  );
+}
+
+function TabelaPrecosLista({ itens, valorHora, onChange }) {
+  const set = (idx, patch) => onChange(itens.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  return (
+    <CalcBloco titulo="Tabela de preços"
+      subtitulo="Valor individual de cada serviço. Aparece como atalho na hora de montar o orçamento."
+      onAdd={() => onChange([...itens, { id: uid(), descricao: "", valor: "", usarValorHora: false }])} addLabel="Adicionar serviço">
+      {itens.map((it, idx) => (
+        <div key={it.id} className="flex gap-2 items-center mb-2 flex-wrap sm:flex-nowrap">
+          <input style={{ ...inputStyle, flex: "1 1 160px", minWidth: 0 }} placeholder="Captação, edição, drone..." value={it.descricao || ""}
+            onChange={(e) => set(idx, { descricao: e.target.value })} />
+          {it.usarValorHora ? (
+            <div className="text-sm px-2" style={{ color: C.gold, fontFamily: "Inter", width: 100 }}>{brl(valorHora)}</div>
+          ) : (
+            <NumInput style={{ ...inputStyle, width: 100 }} placeholder="R$" title="Valor individual" value={it.valor}
+              onChange={(v) => set(idx, { valor: v })} />
+          )}
+          <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer" style={{ color: C.textDim, fontFamily: "Inter" }}>
+            <input type="checkbox" checked={!!it.usarValorHora} onChange={(e) => set(idx, { usarValorHora: e.target.checked })} />
+            usar valor-hora
+          </label>
+          <IconBtn onClick={() => onChange(itens.filter((_, i) => i !== idx))} title="Remover"><Trash2 size={14} /></IconBtn>
+        </div>
+      ))}
+    </CalcBloco>
+  );
+}
+
+function ResumoValorHora({ r, margem }) {
+  const linha = (label, valor, destaque) => (
+    <div className="flex justify-between py-1.5 text-sm" style={{ borderBottom: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
+      <span style={{ color: destaque ? C.text : C.textDim }}>{label}</span>
+      <span style={{ color: destaque ? C.text : C.textDim }}>{brl(valor)}</span>
+    </div>
+  );
+  return (
+    <div className="rounded-xl p-4" style={{ background: C.bgSoft, border: `1px solid ${C.gold}55` }}>
+      <div className="text-xs mb-2" style={{ ...miniLabel }}>Como chegamos no seu valor-hora</div>
+      {linha("Seu salário", r.salarioHora)}
+      {linha("Custos da empresa", r.empresaHora)}
+      {linha("Equipamentos", r.equipamentosHora)}
+      {linha("Programas e assinaturas", r.assinaturasHora)}
+      {linha("Meta de lucro", r.lucroHora)}
+      {linha("Subtotal", r.base, true)}
+      {linha(`Margem de segurança (${Math.round((Number(margem) || 0) * 1000) / 10}%)`, r.margemValor)}
+      <div className="mt-3">
+        <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Valor-hora final</div>
+        <div className="text-3xl font-semibold" style={{ color: C.gold, fontFamily: "Fraunces" }}>{brl(r.arredondado)}</div>
+        <div className="text-xs mt-0.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+          exato {brl(r.final)}, arredondado para cima
+        </div>
+      </div>
+      <div className="mt-3 pt-3 text-xs" style={{ borderTop: `1px solid ${C.borderSoft}`, color: C.textDim, fontFamily: "Inter", lineHeight: 1.5 }}>
+        Trabalhando {r.horas}h no mês, você precisa faturar <b style={{ color: C.text }}>{brl(r.faturamentoMensal)}</b> por mês pra cobrir tudo e bater a meta.
+      </div>
+    </div>
+  );
+}
+
+function CalculadoraConfig({ precificacao, setPrecificacao, onBack }) {
+  const p = precificacao;
+  const r = calcularValorHora(p);
+  const set = (patch) => setPrecificacao({ ...p, ...patch });
+  const vazio = ["custosPessoais", "custosEmpresa", "equipamentos", "assinaturas"].every((k) => p[k].length === 0) && !Number(p.metaLucroMensal);
+
+  const carregarPlanilha = () => {
+    if (!vazio && !window.confirm("Isso troca os custos que estão aqui pelos valores da planilha Orçafácil. Continuar?")) return;
+    setPrecificacao(valoresDaPlanilha());
+    toastSuccess("Valores da planilha carregados.");
+  };
+
+  return (
+    <div>
+      <ModuleHeader title="Calculadora de valor-hora" sub="Coloque todos os seus custos pra descobrir quanto precisa cobrar por hora"
+        right={<button onClick={onBack} className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>‹ Voltar</button>} />
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4 p-3 rounded-lg" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+        <div className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>
+          Tudo é salvo automaticamente e vale para os próximos orçamentos.
+        </div>
+        <button type="button" onClick={carregarPlanilha} className="px-2.5 py-1.5 rounded-md text-xs font-medium"
+          style={{ background: vazio ? C.gold : C.surface, color: vazio ? "#141209" : C.textDim, border: `1px solid ${vazio ? C.gold : C.border}`, fontFamily: "Inter" }}>
+          Carregar valores da planilha
+        </button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px] items-start">
+        <div className="min-w-0">
+          <CalcBloco titulo="Horas trabalhadas por mês"
+            subtitulo="Padrão da planilha: 8h por dia, 5 dias por semana = 160h. Se trabalha mais ou menos, ajuste aqui.">
+            <div className="flex items-center gap-2">
+              <NumInput style={{ ...inputStyle, width: 100 }} value={p.horasPorMes} onChange={(v) => set({ horasPorMes: v })} />
+              <span className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>horas/mês</span>
+            </div>
+          </CalcBloco>
+
+          <CustoMensalLista titulo="Gastos pessoais" subtitulo="Aluguel, mercado, farmácia... A soma vira o salário que você precisa ganhar."
+            itens={p.custosPessoais} horas={r.horas} placeholder="Aluguel de casa, mercado..." onChange={(v) => set({ custosPessoais: v })} />
+
+          <CustoMensalLista titulo="Custos da empresa" subtitulo="Aluguel do estúdio, luz, internet, funcionários, contador..."
+            itens={p.custosEmpresa} horas={r.horas} placeholder="Internet, luz, contador..." onChange={(v) => set({ custosEmpresa: v })} />
+
+          <EquipamentosLista itens={p.equipamentos} horas={r.horas} onChange={(v) => set({ equipamentos: v })} />
+
+          <CustoMensalLista titulo="Programas e assinaturas" subtitulo="Programas de edição, IA, armazenamento..."
+            itens={p.assinaturas} horas={r.horas} placeholder="CapCut, Adobe, Claude..." onChange={(v) => set({ assinaturas: v })} />
+
+          <CalcBloco titulo="Meta de lucro e margem">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Lucro que quer ter por mês (R$)">
+                <NumInput style={inputStyle} value={p.metaLucroMensal} onChange={(v) => set({ metaLucroMensal: v })} />
+              </Field>
+              <Field label="Margem de segurança (%)">
+                <PercentInput style={inputStyle} value={p.margemSeguranca} onChange={(v) => set({ margemSeguranca: v })} />
+              </Field>
+            </div>
+          </CalcBloco>
+
+          <CalcBloco titulo="Taxas padrão dos orçamentos" subtitulo="Usadas em todo orçamento novo. Dá pra mudar em cada orçamento.">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Taxa de cobrança / cartão (%)">
+                <PercentInput style={inputStyle} value={p.taxaCartao} onChange={(v) => set({ taxaCartao: v })} />
+              </Field>
+              <Field label="Imposto - Simples Nacional (%)">
+                <PercentInput style={inputStyle} value={p.impostoSimples} onChange={(v) => set({ impostoSimples: v })} />
+              </Field>
+            </div>
+          </CalcBloco>
+
+          <TabelaPrecosLista itens={p.tabelaPrecos} valorHora={r.arredondado} onChange={(v) => set({ tabelaPrecos: v })} />
+        </div>
+
+        <div className="lg:sticky lg:top-4">
+          <ResumoValorHora r={r} margem={p.margemSeguranca} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ItemRow({ item, fatia, onChange, onRemove }) {
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+      <div className="flex gap-2 mb-2 flex-wrap">
+        <input style={{ ...inputStyle, flex: "2 1 180px" }} placeholder="Descrição (ex.: Captação)" value={item.descricao}
+          onChange={(e) => onChange({ ...item, descricao: e.target.value })} />
+        <input style={{ ...inputStyle, flex: "3 1 200px" }} placeholder="Detalhes pro cliente (opcional)" value={item.detalhes}
+          onChange={(e) => onChange({ ...item, detalhes: e.target.value })} />
+      </div>
+      <div className="flex gap-2 items-end flex-wrap">
+        <label className="block">
+          <span className="block mb-1" style={miniLabel}>Horas</span>
+          <NumInput style={{ ...inputStyle, width: 70 }} placeholder="1" value={item.horas} onChange={(v) => onChange({ ...item, horas: v })} />
+        </label>
+        <span className="pb-2 text-xs" style={{ color: C.textFaint }}>×</span>
+        <label className="block">
+          <span className="block mb-1" style={miniLabel}>Diárias</span>
+          <NumInput style={{ ...inputStyle, width: 70 }} placeholder="1" value={item.diarias} onChange={(v) => onChange({ ...item, diarias: v })} />
+        </label>
+        <span className="pb-2 text-xs" style={{ color: C.textFaint }}>×</span>
+        <label className="block">
+          <span className="block mb-1" style={miniLabel}>Valor individual</span>
+          <NumInput style={{ ...inputStyle, width: 100 }} placeholder="R$" value={item.valorIndividual} onChange={(v) => onChange({ ...item, valorIndividual: v })} />
+        </label>
+        <div className="flex-1 min-w-[110px] text-right pb-1">
+          <div className="text-sm font-semibold" style={{ color: C.gold, fontFamily: "Inter" }}>{brl(calcularItemTotal(item))}</div>
+          <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>{Math.round(fatia * 1000) / 10}% do orçamento</div>
+        </div>
+        <div className="pb-1"><IconBtn onClick={onRemove} title="Remover"><Trash2 size={14} /></IconBtn></div>
+      </div>
+    </div>
+  );
+}
+
+function ResumoOrcamento({ resumo, taxaCartao, impostoSimples, onChange }) {
+  const linha = (label, valor) => (
+    <div className="flex justify-between items-center py-1.5 text-sm gap-3" style={{ borderBottom: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
+      <span style={{ color: C.textDim }}>{label}</span>
+      <span style={{ color: C.textDim, whiteSpace: "nowrap" }}>{brl(valor)}</span>
+    </div>
+  );
+  return (
+    <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.gold}55` }}>
+      {linha("Total líquido (o que fica pra você)", resumo.liquido)}
+      <div className="flex justify-between items-center py-1.5 text-sm gap-3" style={{ borderBottom: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
+        <span className="flex items-center gap-2" style={{ color: C.textDim }}>
+          Taxa de cobrança
+          <PercentInput style={{ ...inputStyle, width: 70, padding: "4px 8px", fontSize: 12 }} value={taxaCartao} onChange={(v) => onChange({ taxaCartao: v })} />%
+        </span>
+        <span style={{ color: C.textDim, whiteSpace: "nowrap" }}>{brl(resumo.taxaValor)}</span>
+      </div>
+      <div className="flex justify-between items-center py-1.5 text-sm gap-3" style={{ borderBottom: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
+        <span className="flex items-center gap-2" style={{ color: C.textDim }}>
+          Imposto
+          <PercentInput style={{ ...inputStyle, width: 70, padding: "4px 8px", fontSize: 12 }} value={impostoSimples} onChange={(v) => onChange({ impostoSimples: v })} />%
+        </span>
+        <span style={{ color: C.textDim, whiteSpace: "nowrap" }}>{brl(resumo.impostoValor)}</span>
+      </div>
+      <div className="flex justify-between items-end pt-3">
+        <span className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Investimento total do cliente</span>
+        <span className="text-2xl font-semibold" style={{ color: C.gold, fontFamily: "Fraunces" }}>{brl(resumo.total)}</span>
+      </div>
     </div>
   );
 }
@@ -2696,7 +2997,8 @@ function VideoRow({ video, onChange, onRemove }) {
 
 const ORCAMENTO_STATUSES = ["Rascunho", "Enviado", "Visualizado", "Aprovado", "Recusado"];
 
-function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setPrecificacao }) {
+function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao: precificacaoSalva, setPrecificacao }) {
+  const precificacao = useMemo(() => normalizarPrecificacao(precificacaoSalva), [precificacaoSalva]);
   const [view, setView] = useState("list");
   const [subView, setSubView] = useState("quadro");
   const [editingId, setEditingId] = useState(null);
@@ -2707,10 +3009,9 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
   const [savedLink, setSavedLink] = useState("");
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  const valorHoraFinal = useMemo(() => calcularValorHoraFinal(precificacao), [precificacao]);
+  const valorHora = useMemo(() => calcularValorHora(precificacao).arredondado, [precificacao]);
   const orcTotal = (o) => calcularInvestimentoTotal(o.itens, { taxaCartao: o.taxaCartao, impostoSimples: o.impostoSimples });
-  const totalLiquidoForm = calcularTotalLiquido(form.itens);
-  const investimentoTotalForm = calcularInvestimentoTotal(form.itens, { taxaCartao: form.taxaCartao, impostoSimples: form.impostoSimples });
+  const resumoForm = calcularResumoOrcamento(form.itens, { taxaCartao: form.taxaCartao, impostoSimples: form.impostoSimples });
 
   const counts = { Todos: orcamentos.length };
   ORCAMENTO_STATUSES.forEach((s) => counts[s] = orcamentos.filter((o) => o.status === s).length);
@@ -2762,9 +3063,11 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
     ...form,
     itens: [...form.itens, {
       id: uid(), descricao: preset?.descricao || "", detalhes: preset?.detalhes || "",
-      horas: 1, diarias: 1, valorIndividual: Math.round(valorHoraFinal) || "",
+      horas: 1, diarias: 1,
+      valorIndividual: preset?.valorIndividual ?? (valorHora || ""),
     }],
   });
+  const addItemDaTabela = (t) => addItem({ descricao: t.descricao, valorIndividual: valorDoItemDaTabela(t, valorHora) });
   const updateItem = (idx, patch) => {
     const itens = form.itens.slice(); itens[idx] = patch; setForm({ ...form, itens });
   };
@@ -2785,8 +3088,8 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
       ...form,
       itens: form.itens.map((it) => ({
         ...it,
-        horas: Number(it.horas) || 1,
-        diarias: Number(it.diarias) || 1,
+        horas: it.horas === "" || it.horas == null ? 1 : Number(it.horas) || 0,
+        diarias: it.diarias === "" || it.diarias == null ? 1 : Number(it.diarias) || 0,
         valorIndividual: Number(it.valorIndividual) || 0,
       })),
       titulo: form.titulo || `Orçamento — ${form.cliente.nome}`,
@@ -2875,18 +3178,29 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
           <input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder={`Orçamento — ${form.cliente.nome || "cliente"}`} />
         </Field>
 
-        <div className="mt-5 mb-2 flex items-center justify-between flex-wrap gap-1">
+        <div className="mt-5 mb-2 flex items-center justify-between flex-wrap gap-2">
           <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Itens do orçamento</div>
-          <div className="text-right">
-            <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>custo interno: {brl(totalLiquidoForm)}</div>
-            <div className="text-sm font-semibold" style={{ color: C.gold, fontFamily: "Inter" }}>Total do cliente: {brl(investimentoTotalForm)}</div>
+          <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+            Seu valor-hora: <span style={{ color: C.gold }}>{brl(valorHora)}</span>
+            {" · "}<button type="button" onClick={() => setView("config")} style={{ color: C.textDim, textDecoration: "underline" }}>ajustar</button>
           </div>
         </div>
+        {precificacao.tabelaPrecos.length > 0 && (
+          <div className="flex gap-2 flex-wrap mb-3">
+            {precificacao.tabelaPrecos.filter((t) => t.descricao).map((t) => (
+              <button key={t.id} type="button" onClick={() => addItemDaTabela(t)}
+                className="px-2.5 py-1.5 rounded-md text-xs font-medium"
+                style={{ background: C.surface, color: C.text, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                + {t.descricao} <span style={{ color: C.gold }}>{brl(valorDoItemDaTabela(t, valorHora))}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mb-3">
           <button type="button" onClick={() => setCatalogOpen(!catalogOpen)}
             className="px-2.5 py-1.5 rounded-md text-xs font-medium"
             style={{ background: C.surface, color: C.gold, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-            + Adicionar do catálogo {catalogOpen ? "▲" : "▼"}
+            + Outros serviços do catálogo {catalogOpen ? "▲" : "▼"}
           </button>
           {catalogOpen && (
             <div className="mt-2 rounded-lg p-3" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
@@ -2910,11 +3224,14 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
           )}
         </div>
         {form.itens.map((item, idx) => (
-          <ItemRow key={item.id} item={item} onChange={(patch) => updateItem(idx, patch)} onRemove={() => removeItem(idx)} />
+          <ItemRow key={item.id} item={item} fatia={resumoForm.fatias[idx]} onChange={(patch) => updateItem(idx, patch)} onRemove={() => removeItem(idx)} />
         ))}
-        <button onClick={() => addItem()} className="flex items-center gap-1.5 text-xs mb-6" style={{ color: C.gold, fontFamily: "Inter" }}>
-          <Plus size={14} />Adicionar item em branco
+        <button onClick={() => addItem()} className="flex items-center gap-1.5 text-xs mb-4 mt-1" style={{ color: C.gold, fontFamily: "Inter" }}>
+          <Plus size={14} />Adicionar item em branco (usa seu valor-hora)
         </button>
+
+        <ResumoOrcamento resumo={resumoForm} taxaCartao={form.taxaCartao} impostoSimples={form.impostoSimples}
+          onChange={(patch) => setForm({ ...form, ...patch })} />
 
         <div className="mt-2 mb-2 text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Vídeos</div>
         {form.videos.map((video, idx) => (
@@ -2933,14 +3250,6 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
             <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {ORCAMENTO_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
-          </Field>
-          <Field label="Taxa de cartão (%)">
-            <input type="number" style={inputStyle} value={((form.taxaCartao ?? 0) * 100).toFixed(2)}
-              onChange={(e) => setForm({ ...form, taxaCartao: (Number(e.target.value) || 0) / 100 })} />
-          </Field>
-          <Field label="Imposto (%)">
-            <input type="number" style={inputStyle} value={((form.impostoSimples ?? 0) * 100).toFixed(2)}
-              onChange={(e) => setForm({ ...form, impostoSimples: (Number(e.target.value) || 0) / 100 })} />
           </Field>
         </div>
 
@@ -2966,95 +3275,7 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao, setP
   }
 
   if (view === "config") {
-    const updateList = (field, idx, patch) => {
-      const arr = precificacao[field].slice(); arr[idx] = patch;
-      setPrecificacao({ ...precificacao, [field]: arr });
-    };
-    const addToList = (field, empty) => setPrecificacao({ ...precificacao, [field]: [...precificacao[field], { id: uid(), ...empty }] });
-    const removeFromList = (field, idx) => setPrecificacao({ ...precificacao, [field]: precificacao[field].filter((_, i) => i !== idx) });
-
-    const CustoSection = ({ title, field }) => (
-      <div className="mb-5">
-        <div className="text-sm font-medium mb-2" style={{ color: C.text, fontFamily: "Inter" }}>{title}</div>
-        {precificacao[field].map((item, idx) => (
-          <div key={item.id} className="flex gap-2 items-center mb-2">
-            <input style={{ ...inputStyle, flex: 1 }} placeholder="Descrição" value={item.descricao}
-              onChange={(e) => updateList(field, idx, { ...item, descricao: e.target.value })} />
-            <input type="number" style={{ ...inputStyle, width: 130 }} placeholder="Valor mensal" value={item.valorMensal}
-              onChange={(e) => updateList(field, idx, { ...item, valorMensal: e.target.value })} />
-            <IconBtn onClick={() => removeFromList(field, idx)} title="Remover"><Trash2 size={14} /></IconBtn>
-          </div>
-        ))}
-        <button onClick={() => addToList(field, { descricao: "", valorMensal: "" })}
-          className="flex items-center gap-1.5 text-xs" style={{ color: C.gold, fontFamily: "Inter" }}>
-          <Plus size={14} />Adicionar
-        </button>
-      </div>
-    );
-
-    return (
-      <div>
-        <ModuleHeader title="Configurar calculadora" sub="Seus custos e meta de lucro definem o valor-hora usado nos orçamentos"
-          right={<button onClick={() => setView("list")} className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>‹ Voltar</button>} />
-
-        <CustoSection title="Custos pessoais (aluguel, mercado, etc.)" field="custosPessoais" />
-        <CustoSection title="Custos da empresa (aluguel do estúdio, internet, luz, etc.)" field="custosEmpresa" />
-        <div className="text-xs mb-4 -mt-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>
-          Seu salário necessário (soma dos custos pessoais acima) já entra automaticamente aqui.
-        </div>
-
-        <div className="mb-5">
-          <div className="text-sm font-medium mb-2" style={{ color: C.text, fontFamily: "Inter" }}>Equipamentos</div>
-          {precificacao.equipamentos.map((item, idx) => (
-            <div key={item.id} className="flex gap-2 items-center mb-2">
-              <input style={{ ...inputStyle, flex: 1 }} placeholder="Descrição" value={item.descricao}
-                onChange={(e) => updateList("equipamentos", idx, { ...item, descricao: e.target.value })} />
-              <input type="number" style={{ ...inputStyle, width: 120 }} placeholder="Valor total" value={item.valorTotal}
-                onChange={(e) => updateList("equipamentos", idx, { ...item, valorTotal: e.target.value })} />
-              <input type="number" style={{ ...inputStyle, width: 110 }} placeholder="Payback (meses)" value={item.paybackMeses}
-                onChange={(e) => updateList("equipamentos", idx, { ...item, paybackMeses: e.target.value })} />
-              <IconBtn onClick={() => removeFromList("equipamentos", idx)} title="Remover"><Trash2 size={14} /></IconBtn>
-            </div>
-          ))}
-          <button onClick={() => addToList("equipamentos", { descricao: "", valorTotal: "", paybackMeses: 12 })}
-            className="flex items-center gap-1.5 text-xs" style={{ color: C.gold, fontFamily: "Inter" }}>
-            <Plus size={14} />Adicionar
-          </button>
-        </div>
-
-        <CustoSection title="Assinaturas e programas" field="assinaturas" />
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <Field label="Meta de lucro mensal (R$)">
-            <input type="number" style={inputStyle} value={precificacao.metaLucroMensal}
-              onChange={(e) => setPrecificacao({ ...precificacao, metaLucroMensal: e.target.value })} />
-          </Field>
-          <Field label="Horas por mês">
-            <input type="number" style={inputStyle} value={precificacao.horasPorMes}
-              onChange={(e) => setPrecificacao({ ...precificacao, horasPorMes: e.target.value })} />
-          </Field>
-        </div>
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <Field label="Margem de segurança (%)">
-            <input type="number" style={inputStyle} value={(precificacao.margemSeguranca * 100).toFixed(2)}
-              onChange={(e) => setPrecificacao({ ...precificacao, margemSeguranca: (Number(e.target.value) || 0) / 100 })} />
-          </Field>
-          <Field label="Taxa de cartão (%)">
-            <input type="number" style={inputStyle} value={(precificacao.taxaCartao * 100).toFixed(2)}
-              onChange={(e) => setPrecificacao({ ...precificacao, taxaCartao: (Number(e.target.value) || 0) / 100 })} />
-          </Field>
-          <Field label="Imposto (%)">
-            <input type="number" style={inputStyle} value={(precificacao.impostoSimples * 100).toFixed(2)}
-              onChange={(e) => setPrecificacao({ ...precificacao, impostoSimples: (Number(e.target.value) || 0) / 100 })} />
-          </Field>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
-          <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Valor-hora calculado</div>
-          <div className="text-xl font-semibold" style={{ color: C.gold, fontFamily: "Fraunces" }}>{brl(valorHoraFinal)}</div>
-        </div>
-      </div>
-    );
+    return <CalculadoraConfig precificacao={precificacao} setPrecificacao={setPrecificacao} onBack={() => setView("list")} />;
   }
 
   return (
