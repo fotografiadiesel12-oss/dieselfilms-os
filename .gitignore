@@ -2,7 +2,10 @@ node_modules
 dist
 .env
 .DS_Store
-.claude
+# .claude: só as instruções do projeto e a cópia de teste vão pro GitHub
+.claude/*
+!.claude/skills/
+!.claude/vite.mock.config.js
 
 .vercel
 .env*
