@@ -3174,17 +3174,21 @@ function CommentBox({ equipe, currentUser, onSubmit }) {
   );
 }
 
-function ExpandableText({ text, style, limit = 320, equipe = [] }) {
+function ExpandableText({ text, style, limit = 320, maxLines = 5, equipe = [] }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
-  const isLong = text.length > limit;
-  const shown = expanded || !isLong ? text : `${text.slice(0, limit).trimEnd()}… `;
+  // corta pelo que vier primeiro: muitas letras ou muitas linhas (texto com
+  // vários "enter" seguidos ocupa a tela inteira mesmo sendo curto)
+  const linhas = text.split("\n");
+  const corte = Math.min(limit, linhas.length > maxLines ? linhas.slice(0, maxLines).join("\n").length : Infinity);
+  const isLong = text.length > corte;
+  const shown = expanded || !isLong ? text : `${text.slice(0, corte).trimEnd()}… `;
   return (
     <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", ...style }}>
       {highlightMentions(shown, equipe)}
       {isLong && (
         <button onClick={() => setExpanded(!expanded)} style={{ color: C.text, fontWeight: 600, marginLeft: 4 }}>
-          {expanded ? "Ver menos" : "Ver mais"}
+          {expanded ? "Ver menos" : "Continuar lendo"}
         </button>
       )}
     </div>
