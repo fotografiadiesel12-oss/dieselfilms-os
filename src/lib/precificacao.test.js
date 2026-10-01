@@ -10,32 +10,28 @@ import {
   calcularInvestimentoTotal,
   calcularResumoOrcamento,
   valorDoItemDaTabela,
+  precificacaoDaPlanilha,
 } from "./precificacao.js";
 
 const perto = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
 
-test("bate com os valores da planilha Calculadora Orçafácil Pro", () => {
+test("calcularValorHora segue as fórmulas da planilha Orçafácil (valores de exemplo)", () => {
   const p = {
     ...seedPrecificacao(),
-    custosPessoais: [{ valorMensal: 1300 }, { valorMensal: 1470 }],
-    custosEmpresa: [{ valorMensal: 120 }, { valorMensal: 150 }, { valorMensal: 100 }],
-    equipamentos: [
-      { valorTotal: 7500, paybackMeses: 12 },
-      { valorTotal: 200, paybackMeses: 12 },
-      { valorTotal: 90, paybackMeses: 12 },
-      { valorTotal: 750, paybackMeses: 12 },
-    ],
-    assinaturas: [{ valorMensal: 40 }, { valorMensal: 120 }],
-    metaLucroMensal: 10000,
+    custosPessoais: [{ valorMensal: 2000 }, { valorMensal: 1200 }],
+    custosEmpresa: [{ valorMensal: 300 }, { valorMensal: 100 }],
+    equipamentos: [{ valorTotal: 7680, paybackMeses: 12 }, { valorTotal: 1920, paybackMeses: 12 }],
+    assinaturas: [{ valorMensal: 160 }],
+    metaLucroMensal: 8000,
   };
   const r = calcularValorHora(p);
-  perto(r.salarioHora + r.empresaHora, 19.625);   // I22
-  perto(r.equipamentosHora, 4.447916667);         // N22
-  perto(r.assinaturasHora, 1);                    // D41
-  perto(r.lucroHora, 62.5);                       // L29
-  perto(r.base, 87.57291667);                     // L31
-  perto(r.final, 96.33020833);                    // L33
-  assert.equal(r.arredondado, 97);
+  perto(r.salarioHora + r.empresaHora, 22.5); // (3200 + 400) / 160
+  perto(r.equipamentosHora, 5);               // 9600 / (12 * 160)
+  perto(r.assinaturasHora, 1);
+  perto(r.lucroHora, 50);
+  perto(r.base, 78.5);
+  perto(r.final, 86.35);                      // + 10% de margem
+  assert.equal(r.arredondado, 87);
   perto(calcularValorHoraFinal(p), r.final);
 });
 
@@ -99,4 +95,39 @@ test("calcularResumoOrcamento separa taxa, imposto e fatia de cada item", () => 
   perto(r.liquido + r.taxaValor + r.impostoValor, r.total);
   perto(r.fatias[0] + r.fatias[1], 1);
   perto(r.fatias[1], 784 / 1176);
+});
+
+test("precificacaoDaPlanilha lê as posições da planilha Orçafácil", () => {
+  const abas = {
+    "Orça Fácil": {
+      F6: "CUSTOS DA SUA EMPRESA",
+      A10: "MERCADO", B10: 1000, C10: 100,
+      A11: "[PREENCHA SEUS GASTOS]", B11: 200,
+      A12: "[PREENCHA SEUS GASTOS]", B12: 0,
+      F10: "O SALÁRIO QUE PRECISA GANHAR", G10: 1200,
+      F11: "INTERNET", G11: 100,
+      K10: "Câmera", L10: 2400, M10: 1200,
+      A29: "Adobe", B29: 50,
+      G28: 3000, L31: 50, L33: 60,
+    },
+    Projetos: {
+      A4: "CAPTAÇÃO", D4: 40, A5: "EDIÇÃO", D5: 80, A9: "OUTROS", D9: 0,
+      F14: 0.03, F15: 0.05,
+    },
+  };
+  const p = precificacaoDaPlanilha(abas);
+  assert.equal(p.horasPorMes, 100);
+  assert.deepEqual(p.custosPessoais.map((c) => [c.descricao, c.valorMensal]), [["Mercado", 1000], ["Outros gastos", 200]]);
+  assert.deepEqual(p.custosEmpresa.map((c) => [c.descricao, c.valorMensal]), [["Internet", 100]]);
+  assert.equal(p.equipamentos[0].paybackMeses, 12);
+  assert.equal(p.assinaturas[0].valorMensal, 50);
+  assert.equal(p.metaLucroMensal, 3000);
+  perto(p.margemSeguranca, 0.2);
+  assert.deepEqual(p.tabelaPrecos.map((t) => [t.descricao, t.valor]), [["Captação", 40], ["Edição", 80]]);
+  assert.equal(p.taxaCartao, 0.03);
+  assert.equal(p.impostoSimples, 0.05);
+});
+
+test("precificacaoDaPlanilha recusa planilha em outro formato", () => {
+  assert.throws(() => precificacaoDaPlanilha({ Plan1: { A1: "qualquer coisa" } }), /formato/);
 });

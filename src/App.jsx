@@ -12,10 +12,11 @@ import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
 import { createOrcamento, updateOrcamento, deleteOrcamento } from "./lib/orcamentosApi.js";
 import {
-  seedPrecificacao, normalizarPrecificacao, valoresDaPlanilha, calcularValorHora,
+  seedPrecificacao, normalizarPrecificacao, precificacaoDaPlanilha, calcularValorHora,
   equipamentoPorHora, valorDoItemDaTabela, calcularItemTotal,
   calcularInvestimentoTotal, calcularResumoOrcamento,
 } from "./lib/precificacao.js";
+import { lerXlsx } from "./lib/lerXlsx.js";
 import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
 import { uploadImagem } from "./lib/mediaApi.js";
 import { hashPassword } from "./lib/authClient.js";
@@ -212,8 +213,8 @@ const CATALOGO_CATEGORIAS = [
 ];
 
 const seedEquipe = () => ([
-  { id: uid(), nome: "Yuri Diesel", email: "yuri@dieselfilms.com", senha: "diesel2026", papel: "Admin", modulos: [...ALL_MODULES] },
-  { id: uid(), nome: "Luís Antônio", email: "luis@dieselfilms.com", senha: "diesel2026", papel: "Sócio", modulos: [...ALL_MODULES] },
+  { id: uid(), nome: "Yuri Diesel", email: "yuri@dieselfilms.com", papel: "Admin", modulos: [...ALL_MODULES] },
+  { id: uid(), nome: "Luís Antônio", email: "luis@dieselfilms.com", papel: "Sócio", modulos: [...ALL_MODULES] },
 ]);
 
 /* ---------------------------------------------------------
@@ -2807,10 +2808,19 @@ function CalculadoraConfig({ precificacao, setPrecificacao, onBack }) {
   const set = (patch) => setPrecificacao({ ...p, ...patch });
   const vazio = ["custosPessoais", "custosEmpresa", "equipamentos", "assinaturas"].every((k) => p[k].length === 0) && !Number(p.metaLucroMensal);
 
-  const carregarPlanilha = () => {
-    if (!vazio && !window.confirm("Isso troca os custos que estão aqui pelos valores da planilha Orçafácil. Continuar?")) return;
-    setPrecificacao(valoresDaPlanilha());
-    toastSuccess("Valores da planilha carregados.");
+  const arquivoRef = useRef(null);
+  const importarPlanilha = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!arquivo) return;
+    try {
+      const novo = precificacaoDaPlanilha(await lerXlsx(await arquivo.arrayBuffer()));
+      if (!vazio && !window.confirm("Isso troca os custos e a tabela de preços que estão aqui pelos valores da planilha. Continuar?")) return;
+      setPrecificacao(novo);
+      toastSuccess(`Planilha importada: valor-hora ${brl(calcularValorHora(novo).arredondado)}.`);
+    } catch (err) {
+      toastError(err?.message || "Não deu pra ler essa planilha.");
+    }
   };
 
   return (
@@ -2822,9 +2832,10 @@ function CalculadoraConfig({ precificacao, setPrecificacao, onBack }) {
         <div className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>
           Tudo é salvo automaticamente e vale para os próximos orçamentos.
         </div>
-        <button type="button" onClick={carregarPlanilha} className="px-2.5 py-1.5 rounded-md text-xs font-medium"
+        <input ref={arquivoRef} type="file" accept=".xlsx" className="hidden" onChange={importarPlanilha} />
+        <button type="button" onClick={() => arquivoRef.current?.click()} className="px-2.5 py-1.5 rounded-md text-xs font-medium"
           style={{ background: vazio ? C.gold : C.surface, color: vazio ? "#141209" : C.textDim, border: `1px solid ${vazio ? C.gold : C.border}`, fontFamily: "Inter" }}>
-          Carregar valores da planilha
+          Importar planilha (.xlsx)
         </button>
       </div>
 
