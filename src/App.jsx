@@ -409,7 +409,7 @@ function toastSuccess(message) { pushToast("success", message); }
 const SHARED_LABELS = {
   df_clientes: "clientes", df_leads: "leads", df_demandas: "demandas", df_financeiro: "financeiro",
   df_contratos: "contratos", df_equipe: "equipe", df_orcamentos: "orçamentos",
-  df_precificacao: "precificação", df_activity: "atividade recente",
+  df_precificacao: "precificação", df_empresa: "dados da empresa", df_activity: "atividade recente",
 };
 
 function ToastHost() {
@@ -1968,63 +1968,305 @@ const defaultMomento = (i, total) => {
   return `${i + 1}ª parcela`;
 };
 
+// Dados fixos da DieselFilms que entram em todo contrato (editáveis na tela
+// de Contratos > "Dados da empresa"). Ficam salvos no sistema, não no código.
+const seedEmpresa = () => ({
+  razaoSocial: "DieselFilms Produções Audiovisuais",
+  cnpj: "", endereco: "", representante: "", cpfRepresentante: "",
+  banco: "", agencia: "", conta: "", tipoConta: "Conta corrente", chavePix: "",
+  cidadeBase: "", email: "", telefone: "",
+});
+
 const emptyContratoForm = () => ({
-  titulo: "", cliente: "", tipoDocumento: "CNPJ", documento: "",
-  representante: "", cpfRepresentante: "", endereco: "",
-  tipo: "Casamento", escopo: "", prazo: "",
-  valor: "", formaPagamento: "Pix", numParcelas: 1, momentos: ["à vista"],
+  titulo: "", cliente: "", tipoDocumento: "CPF", documento: "",
+  representante: "", cpfRepresentante: "", endereco: "", emailCliente: "", telefoneCliente: "",
+  tipo: "Casamento", modalidade: "Avulso", escopo: "",
+  dataCaptacao: "", localCaptacao: "", horasCaptacao: "", valorHoraExtra: "",
+  prazoConclusaoDias: 30, prazo: "", rodadasAjuste: 2, diasAprovacao: 5,
+  deslocamento: "", deslocamentoIncluso: true,
+  usoImagem: "", usoPortfolio: true,
+  valor: "", formaPagamento: "Pix", numParcelas: 1, momentos: ["à vista"], diaVencimento: "",
   vigenciaMeses: "", foro: "",
   status: "Rascunho",
 });
 
-const buildContractText = (form) => {
+const EXTENSO = { 1: "um", 2: "dois", 3: "três", 4: "quatro", 5: "cinco", 6: "seis", 7: "sete", 8: "oito", 9: "nove", 10: "dez", 12: "doze", 14: "quatorze", 15: "quinze", 20: "vinte", 21: "vinte e um", 25: "vinte e cinco", 30: "trinta", 45: "quarenta e cinco", 60: "sessenta", 90: "noventa" };
+// "30 (trinta)"; sem a palavra quando o número não está na tabela
+const ext = (n, fem) => {
+  let w = EXTENSO[n];
+  if (w && fem) w = w.replace(/^um$/, "uma").replace(/^dois$/, "duas").replace(/ e um$/, " e uma");
+  return w ? `${n} (${w})` : `${n}`;
+};
+
+const TITULO_CONTRATO = "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS";
+
+const ehEvento = (tipo) => ["Casamento", "Evento"].includes(tipo);
+const usoPadrao = (tipo) => (["Casamento", "Ensaio"].includes(tipo) ? "pessoal" : "comercial");
+
+// Monta o contrato em texto. Cada cláusula é { titulo, itens[] } e a
+// numeração (1ª, 1.1, 1.2...) é gerada aqui, então dá pra ligar/desligar
+// cláusulas conforme o tipo e a modalidade sem quebrar a sequência.
+const buildContractText = (form, empresa = seedEmpresa()) => {
+  const e = { ...seedEmpresa(), ...(empresa || {}) };
+  const mensal = form.modalidade === "Mensal";
+  const evento = ehEvento(form.tipo);
+  const uso = form.usoImagem || usoPadrao(form.tipo);
   const valorTotal = Number(form.valor) || 0;
   const n = Math.max(1, Number(form.numParcelas) || 1);
   const valorParcela = valorTotal / n;
   const momentos = form.momentos && form.momentos.length === n
     ? form.momentos
     : Array.from({ length: n }, (_, i) => defaultMomento(i, n));
-  const linhasParcelas = n === 1
-    ? [`- Pagamento único de ${brl(valorTotal)}, ${momentos[0] || "à vista"}.`]
-    : momentos.map((m, i) => `- Parcela ${i + 1}: ${brl(valorParcela)} — ${m || "a combinar"}.`);
+  const dias = Number(form.prazoConclusaoDias) || 30;
+  const rodadas = Number(form.rodadasAjuste) >= 0 && form.rodadasAjuste !== "" ? Number(form.rodadasAjuste) : 2;
+  const diasAprov = Number(form.diasAprovacao) || 5;
+  const deslocValor = Number(form.deslocamento) || 0;
+  const b = (v, ph) => (v && String(v).trim() ? String(v).trim() : `[${ph}]`);
+  const ciclo = mensal ? "de cada ciclo mensal" : "do contrato";
 
-  return [
-    "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS",
+  const contratante = [
+    `CONTRATANTE: ${b(form.cliente, "nome completo / razão social")}`,
+    `inscrito(a) no ${form.tipoDocumento || "CPF/CNPJ"} sob o nº ${b(form.documento, "número do documento")}`,
+    `com endereço em ${b(form.endereco, "endereço completo")}`,
+    form.representante ? `neste ato representado(a) por ${form.representante}${form.cpfRepresentante ? `, CPF nº ${form.cpfRepresentante}` : ""}` : "",
+    form.emailCliente || form.telefoneCliente ? `contato: ${[form.emailCliente, form.telefoneCliente].filter(Boolean).join(" / ")}` : "",
+  ].filter(Boolean).join(", ") + ".";
+
+  const contratada = [
+    `CONTRATADA: ${b(e.razaoSocial, "razão social")}, pessoa jurídica de direito privado`,
+    `inscrita no CNPJ sob o nº ${b(e.cnpj, "CNPJ da DieselFilms")}`,
+    `com sede em ${b(e.endereco, "endereço da empresa")}`,
+    `neste ato representada por ${b(e.representante, "nome do representante")}${e.cpfRepresentante ? `, CPF nº ${e.cpfRepresentante}` : ""}`,
+  ].join(", ") + ".";
+
+  const parcelas = n === 1
+    ? [`Pagamento único de ${brl(valorTotal)}, ${momentos[0] || "à vista"}.`]
+    : momentos.map((m, i) => `Parcela ${i + 1}: ${brl(valorParcela)} — ${m || "a combinar"}.`);
+
+  const conta = [
+    `Favorecido: ${b(e.razaoSocial, "razão social")} — CNPJ ${b(e.cnpj, "CNPJ")}`,
+    `Banco: ${b(e.banco, "banco")} · Agência: ${b(e.agencia, "agência")} · ${e.tipoConta || "Conta"}: ${b(e.conta, "número da conta")}`,
+    `Chave Pix: ${b(e.chavePix, "chave Pix (CNPJ)")}`,
+  ];
+
+  const clausulas = [];
+  const add = (titulo, itens) => clausulas.push({ titulo, itens: itens.filter(Boolean) });
+
+  add("DO OBJETO", [
+    `O presente contrato tem por objeto a prestação, pela CONTRATADA, de serviços de produção audiovisual na modalidade ${mensal ? "MENSAL (serviço recorrente)" : "AVULSA (projeto único)"}, referentes a ${(form.tipo || "produção audiovisual").toLowerCase()}, compreendendo exclusivamente: ${b(form.escopo, "descreva cada entrega: quantidade de vídeos, duração, formatos, fotos, drone etc.")}.`,
+    form.horasCaptacao
+      ? `A captação contratada é de ${form.horasCaptacao} hora(s)${mensal ? " por ciclo mensal" : ""}${form.dataCaptacao ? `, prevista para ${form.dataCaptacao}` : ""}${form.localCaptacao ? `, em ${form.localCaptacao}` : ""}.`
+      : (form.dataCaptacao || form.localCaptacao)
+        ? `A captação está prevista para ${b(form.dataCaptacao, "data")}${form.localCaptacao ? `, em ${form.localCaptacao}` : ""}.`
+        : "",
+    "Integram este contrato somente os serviços expressamente descritos acima. Qualquer serviço não previsto — tais como novas captações, vídeos ou fotos adicionais, outros formatos ou versões, legendas, traduções, locução, drone, motion graphics, entrega de material bruto ou urgência — será orçado à parte e só será executado após aprovação por escrito da CONTRATANTE, inclusive por e-mail ou WhatsApp.",
+    mensal ? "Na modalidade mensal, as entregas descritas correspondem a cada ciclo de 30 (trinta) dias. Entregas não utilizadas pela CONTRATANTE dentro do ciclo não são cumulativas, não geram crédito para ciclos seguintes e não são reembolsáveis, salvo se a não utilização decorrer de culpa da CONTRATADA." : "",
+  ]);
+
+  add(`DO PRAZO DE CONCLUSÃO`, [
+    `As partes estabelecem o prazo de ${ext(dias)} dias corridos, contados ${mensal ? "do início de cada ciclo mensal" : evento ? "da data do evento" : "da assinatura deste contrato"}, para a realização das captações e de todas as etapas que dependem da CONTRATANTE — agendamento, envio de materiais e informações, e aprovações —, de modo a permitir a finalização do projeto.`,
+    `Para o cumprimento desse prazo, a CONTRATANTE se obriga a: (a) agendar e disponibilizar as datas de captação; (b) fornecer locais, pessoas, produtos, informações, textos, logotipos, roteiros e demais materiais necessários; e (c) responder às solicitações de aprovação em até ${ext(diasAprov)} dias úteis.`,
+    `Decorrido o prazo de ${dias} dias sem que os serviços tenham sido concluídos por motivo atribuível à CONTRATANTE — como falta de agendamento, remarcações, ausência, não envio de materiais, demora em aprovações ou indisponibilidade —, os serviços serão considerados prestados e o valor integral ${ciclo} tornar-se-á imediatamente exigível, sem direito a abatimento, reembolso ou crédito.`,
+    "Na hipótese do item anterior, a CONTRATADA entregará o material já captado e/ou editado até então. A realização das etapas pendentes após o prazo dependerá de nova disponibilidade de agenda e poderá ser cobrada como serviço adicional.",
+    "Se o atraso decorrer de culpa exclusiva da CONTRATADA, o prazo será prorrogado pelo período equivalente ao atraso, sem qualquer ônus para a CONTRATANTE.",
+    `O material editado será entregue em até ${b(form.prazo, "prazo de entrega da edição, ex.: 20 dias úteis")}, contados da última captação ou do recebimento de todos os materiais necessários, o que ocorrer por último.`,
+  ]);
+
+  add("DAS CAPTAÇÕES, REMARCAÇÕES E HORA EXTRA", [
+    "O tempo de captação é contado a partir do horário agendado para o início, ainda que a CONTRATANTE, seus convidados, modelos ou o local não estejam prontos. A CONTRATADA aguardará uma tolerância de 30 (trinta) minutos; após esse período, o tempo de espera será descontado do tempo contratado.",
+    form.valorHoraExtra
+      ? `A extensão do tempo de captação, quando solicitada pela CONTRATANTE e houver disponibilidade da equipe, será cobrada como hora extra no valor de ${brl(Number(form.valorHoraExtra) || 0)} por hora ou fração, a ser paga em até 5 (cinco) dias úteis.`
+      : "A extensão do tempo de captação, quando solicitada pela CONTRATANTE e houver disponibilidade da equipe, será cobrada como hora extra, por hora ou fração, conforme valor informado no orçamento.",
+    evento
+      ? "Pedidos de remarcação da data do evento deverão ser feitos por escrito com antecedência mínima de 30 (trinta) dias e ficam sujeitos à disponibilidade de agenda. Não havendo data disponível, aplica-se a cláusula de cancelamento."
+      : "Pedidos de remarcação deverão ser feitos por escrito com antecedência mínima de 48 (quarenta e oito) horas e ficam sujeitos à disponibilidade de agenda. Remarcações com menos de 48 horas ou o não comparecimento da CONTRATANTE no horário agendado serão considerados captação realizada.",
+    evento ? "A CONTRATANTE deverá informar à CONTRATADA, com antecedência mínima de 7 (sete) dias, o cronograma do evento e o nome e telefone de uma pessoa responsável para contato no dia." : "",
+    evento ? "A CONTRATADA não se responsabiliza por momentos não registrados em razão de atrasos ou alterações no cronograma, restrições impostas pelo local ou celebrante, obstrução por terceiros (convidados, outros fotógrafos ou cinegrafistas), iluminação inadequada do ambiente ou fatos que ocorram simultaneamente em locais diferentes." : "",
+    !evento ? "Quando necessários, roteiro, briefing e referências deverão ser aprovados pela CONTRATANTE antes da captação. Produtos, figurinos, modelos, locações e autorizações são de responsabilidade da CONTRATANTE, salvo previsão expressa em contrário." : "",
+  ]);
+
+  add("DO VALOR, DA FORMA DE PAGAMENTO E DA CONTA", [
+    `Pelos serviços objeto deste contrato, a CONTRATANTE pagará à CONTRATADA o valor total de ${brl(valorTotal)}${mensal ? " por ciclo mensal" : ""}, via ${form.formaPagamento || "Pix"}, da seguinte forma:`,
+    ...parcelas.map((p) => `- ${p}`),
+    mensal ? `O pagamento de cada ciclo mensal vencerá no dia ${b(form.diaVencimento, "dia de vencimento")} de cada mês, de forma antecipada.` : "",
+    "Os pagamentos deverão ser feitos exclusivamente na conta de titularidade da pessoa jurídica CONTRATADA, abaixo indicada. Pagamentos feitos a terceiros ou em contas de pessoa física não serão reconhecidos como quitação:",
+    ...conta.map((c) => `- ${c}`),
+    "A CONTRATADA emitirá a respectiva nota fiscal de serviços em nome da CONTRATANTE.",
+    !mensal && n > 1 ? "A primeira parcela tem natureza de sinal e confirma a reserva da data e da agenda da equipe (arras confirmatórias, art. 418 do Código Civil)." : "",
+    "O atraso no pagamento sujeitará a CONTRATANTE à multa de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês, calculados dia a dia, e correção monetária pelo IPCA.",
+    "Havendo atraso superior a 10 (dez) dias, a CONTRATADA poderá suspender a execução dos serviços e reter a entrega dos arquivos finais até a quitação integral, sem que isso caracterize descumprimento contratual, ficando os prazos de entrega suspensos durante o período.",
+  ]);
+
+  add("DO DESLOCAMENTO, DA LOGÍSTICA E DAS DESPESAS", [
+    `São de responsabilidade da CONTRATANTE todas as despesas de deslocamento da equipe e do transporte dos equipamentos — tais como combustível, pedágios, estacionamento, transporte por aplicativo, passagens e frete —, bem como hospedagem e alimentação, quando a captação ocorrer fora de ${b(e.cidadeBase, "cidade-base da DieselFilms")}.`,
+    deslocValor > 0
+      ? `Essas despesas estão estimadas em ${brl(deslocValor)}, valor que ${form.deslocamentoIncluso ? "já está incluído" : "não está incluído e será somado"} no valor total deste contrato, conforme orçamento aprovado.`
+      : "Essas despesas estão discriminadas no orçamento aprovado pela CONTRATANTE, que integra este contrato.",
+    "Despesas não previstas no orçamento, decorrentes de alteração de local, data ou horário solicitada pela CONTRATANTE, serão informadas previamente e reembolsadas mediante comprovante, em até 5 (cinco) dias úteis.",
+    evento ? "Em captações com duração superior a 6 (seis) horas, a CONTRATANTE fornecerá alimentação à equipe, em padrão equivalente ao oferecido aos convidados, ou valor correspondente previamente acordado." : "",
+    "Taxas de locação de espaços, licenças e autorizações de filmagem, credenciais e ingressos necessários para o acesso da equipe são de responsabilidade da CONTRATANTE.",
+  ]);
+
+  add("DOS EQUIPAMENTOS E DA SEGURANÇA DA EQUIPE", [
+    "Os equipamentos utilizados são de propriedade da CONTRATADA, que é responsável por sua operação e manutenção.",
+    "A CONTRATANTE responderá pelos danos, furtos, roubos ou extravios dos equipamentos da CONTRATADA causados por ela, seus convidados, funcionários ou prepostos, ou ocorridos em razão da falta de segurança do local por ela indicado, arcando com o custo de reparo ou, se inviável, de reposição por equipamento equivalente ao preço de mercado, mediante orçamento técnico, salvo culpa da própria CONTRATADA.",
+    "A CONTRATANTE garantirá condições adequadas e seguras de trabalho, incluindo acesso aos locais, ponto de energia elétrica e local protegido para a guarda dos equipamentos.",
+    "A CONTRATADA poderá interromper a captação, sem prejuízo do pagamento, sempre que houver risco à integridade da equipe ou dos equipamentos, tais como chuva sem cobertura adequada, condições inseguras, ameaças, agressões ou assédio.",
+    "Captações com drone estão sujeitas às normas da ANAC e do DECEA, às condições climáticas e à autorização do local. A impossibilidade de voo por esses motivos não gera abatimento ou reembolso.",
+  ]);
+
+  add("DA EDIÇÃO, DAS APROVAÇÕES E DOS AJUSTES", [
+    "A edição seguirá o briefing e as referências aprovados, cabendo à CONTRATADA a linguagem estética e as escolhas técnicas e criativas da obra.",
+    `Estão incluídas ${ext(rodadas, true)} rodada(s) de ajustes por entrega. Os pedidos de cada rodada devem ser enviados em uma única lista consolidada, em até ${ext(diasAprov)} dias úteis após o recebimento do material.`,
+    "Ajustes adicionais, bem como alterações de roteiro, conceito ou briefing já aprovados, serão cobrados à parte.",
+    `Não havendo manifestação da CONTRATANTE em até ${ext(diasAprov)} dias úteis após o envio de qualquer material para aprovação, o material será considerado aprovado.`,
+    "As trilhas sonoras serão, preferencialmente, de bibliotecas licenciadas. Músicas comerciais escolhidas pela CONTRATANTE podem sofrer bloqueio ou silenciamento em plataformas digitais, e seu licenciamento é de responsabilidade exclusiva da CONTRATANTE.",
+  ]);
+
+  add("DA ENTREGA E DO ARMAZENAMENTO DOS ARQUIVOS", [
+    "A entrega será digital, por link de download com validade de 30 (trinta) dias. Cabe à CONTRATANTE baixar os arquivos e manter suas próprias cópias de segurança.",
+    "O material bruto (arquivos originais da captação) e os arquivos de projeto de edição não integram a entrega, salvo contratação expressa.",
+    "A CONTRATADA manterá cópia dos arquivos finais por 90 (noventa) dias após a entrega. Após esse prazo, não haverá obrigação de guarda.",
+    "Na hipótese de perda de material por falha técnica de equipamento, furto ou caso fortuito, a responsabilidade da CONTRATADA limita-se, à escolha da CONTRATANTE, à realização de nova captação sem custo, quando possível, ou à devolução proporcional dos valores pagos pela parte do serviço não entregue.",
+  ]);
+
+  add("DOS DIREITOS AUTORAIS E DO USO DE IMAGEM", [
+    "Os direitos autorais sobre as obras produzidas pertencem à CONTRATADA, nos termos da Lei nº 9.610/1998.",
+    uso === "pessoal"
+      ? "Após a quitação integral, a CONTRATANTE recebe licença de uso das obras para fins pessoais e não comerciais, por prazo indeterminado, sendo vedados a venda, o sublicenciamento e o uso publicitário sem autorização da CONTRATADA."
+      : "Após a quitação integral, a CONTRATANTE recebe licença de uso das obras para fins institucionais e comerciais em seus próprios canais e campanhas, por prazo indeterminado, sendo vedados a revenda e o sublicenciamento a terceiros sem autorização da CONTRATADA.",
+    "É vedado o uso, a publicação ou a divulgação das obras antes da quitação integral do contrato.",
+    form.usoPortfolio
+      ? "A CONTRATANTE autoriza a CONTRATADA a utilizar trechos das obras, imagens e bastidores em seu portfólio, site, redes sociais, concursos e materiais de divulgação, sem qualquer remuneração, podendo revogar essa autorização por escrito a qualquer tempo para usos futuros."
+      : "A CONTRATADA não utilizará as obras em seu portfólio ou redes sociais sem autorização prévia e por escrito da CONTRATANTE.",
+    "A CONTRATANTE declara possuir as autorizações de uso de imagem, voz, marca e local das pessoas e espaços que indicar para a captação, respondendo por eventuais reclamações de terceiros.",
+  ]);
+
+  add(mensal ? "DA VIGÊNCIA, DA RENOVAÇÃO E DA RESCISÃO" : "DO CANCELAMENTO E DA RESCISÃO", mensal ? [
+    `Este contrato vigora por ${b(form.vigenciaMeses, "número de")} meses a partir da assinatura, renovando-se automaticamente por iguais períodos, salvo manifestação contrária de qualquer das partes, por escrito, com antecedência mínima de 30 (trinta) dias.`,
+    "Qualquer das partes poderá rescindir o contrato mediante aviso prévio, por escrito, de 30 (trinta) dias, sem multa. O ciclo mensal em curso e o ciclo do aviso prévio são devidos integralmente.",
+    "O descumprimento de qualquer cláusula, não sanado em até 10 (dez) dias após notificação, autoriza a rescisão imediata pela parte prejudicada, sem prejuízo da cobrança dos valores devidos.",
+  ] : [
+    "Em caso de desistência pela CONTRATANTE após a assinatura, os valores pagos a título de sinal não serão devolvidos, por compensarem a reserva de data e a recusa de outros trabalhos pela CONTRATADA.",
+    evento
+      ? "Se a desistência ocorrer com menos de 30 (trinta) dias da data do evento, será devido o equivalente a 50% (cinquenta por cento) do valor total do contrato, abatido desse montante o sinal já pago. Após o início dos serviços, será devido o valor integral."
+      : "Se a desistência ocorrer com menos de 7 (sete) dias da captação, será devido o equivalente a 50% (cinquenta por cento) do valor total do contrato, abatido desse montante o sinal já pago. Após o início dos serviços, será devido o valor integral.",
+    "Em caso de desistência pela CONTRATADA, sem justo motivo, esta devolverá integralmente os valores recebidos, no prazo de 10 (dez) dias.",
+    "Quando a contratação ocorrer fora do estabelecimento da CONTRATADA (por internet, telefone ou WhatsApp) e a CONTRATANTE for pessoa física, fica assegurado o direito de arrependimento em até 7 (sete) dias da assinatura, com devolução integral dos valores pagos, desde que os serviços ainda não tenham sido iniciados a pedido da CONTRATANTE (art. 49 do Código de Defesa do Consumidor).",
+  ]);
+
+  add("DO CASO FORTUITO E DA FORÇA MAIOR", [
+    "Nenhuma das partes responderá por descumprimento causado por caso fortuito ou força maior (art. 393 do Código Civil), como doença grave comprovada, acidentes, catástrofes naturais, determinações do poder público ou pandemias.",
+    "Nessas hipóteses, os serviços serão remarcados sem custo em até 90 (noventa) dias. Sendo impossível a remarcação, os valores pagos serão devolvidos, descontadas as despesas já realizadas e os serviços já prestados.",
+    "Em caso de impedimento do profissional designado, a CONTRATADA poderá substituí-lo por outro de qualificação equivalente, comunicando a CONTRATANTE.",
+  ]);
+
+  add("DA CONFIDENCIALIDADE E DA PROTEÇÃO DE DADOS", [
+    "As partes manterão sigilo sobre as informações confidenciais a que tiverem acesso em razão deste contrato.",
+    "Os dados pessoais das partes serão tratados exclusivamente para a execução deste contrato, a emissão de documentos fiscais e o cumprimento de obrigações legais, nos termos da Lei nº 13.709/2018 (LGPD).",
+  ]);
+
+  add("DAS DISPOSIÇÕES GERAIS", [
+    "As comunicações entre as partes poderão ser feitas por e-mail ou WhatsApp, que serão considerados meios válidos de notificação, aprovação e registro.",
+    "A tolerância de uma das partes quanto ao descumprimento de qualquer obrigação não significa renúncia ou novação.",
+    "Este contrato não gera vínculo empregatício, societário ou de representação entre as partes, nem entre a CONTRATANTE e a equipe da CONTRATADA.",
+    "O orçamento aprovado integra este contrato. Em caso de divergência, prevalece o disposto neste contrato.",
+    "As partes admitem a assinatura deste contrato por meio eletrônico, com a mesma validade da assinatura física (MP nº 2.200-2/2001 e Lei nº 14.063/2020). Assinado pelas partes e por duas testemunhas, este contrato constitui título executivo extrajudicial (art. 784, III, do Código de Processo Civil).",
+  ]);
+
+  add("DO FORO", [
+    `Fica eleito o foro da comarca de ${b(form.foro, "cidade")} para dirimir quaisquer controvérsias oriundas deste contrato, ressalvado o direito da CONTRATANTE, quando consumidora, de demandar no foro de seu domicílio.`,
+  ]);
+
+  const linhas = [TITULO_CONTRATO, "", contratante, "", contratada, "",
+    "As partes acima qualificadas têm entre si justo e contratado o presente instrumento, que se regerá pelas cláusulas seguintes e pela legislação aplicável.", ""];
+
+  clausulas.forEach((c, i) => {
+    linhas.push(`CLÁUSULA ${i + 1}ª — ${c.titulo}`);
+    let sub = 0;
+    c.itens.forEach((t) => {
+      if (t.startsWith("- ")) { linhas.push(t); return; }
+      sub += 1;
+      linhas.push(`${i + 1}.${sub}. ${t}`);
+    });
+    linhas.push("");
+  });
+
+  linhas.push(
+    "E, por estarem justas e contratadas, as partes assinam o presente instrumento em 2 (duas) vias de igual teor e forma, juntamente com as testemunhas abaixo.",
     "",
-    `CONTRATANTE: ${form.cliente || "[nome do cliente]"}${form.documento ? `, inscrito(a) no ${form.tipoDocumento || "CPF/CNPJ"} nº ${form.documento}` : ""}${form.endereco ? `, residente e domiciliado(a) em ${form.endereco}` : ""}.`,
-    form.representante ? `Representante legal: ${form.representante}${form.cpfRepresentante ? ` (CPF nº ${form.cpfRepresentante})` : ""}.` : "",
-    "CONTRATADA: DieselFilms Produções Audiovisuais.",
+    `${b(form.foro || e.cidadeBase, "cidade")}, ____ de ______________ de ________.`,
     "",
-    "CLÁUSULA 1ª — DO OBJETO",
-    `O presente contrato tem como objeto a prestação de serviços de ${(form.tipo || "").toLowerCase()} pela CONTRATADA à CONTRATANTE, compreendendo: ${form.escopo || "[descreva o escopo do serviço]"}.`,
     "",
-    "CLÁUSULA 2ª — DO PRAZO",
-    `A entrega dos materiais contratados ocorrerá em até ${form.prazo || "[prazo a combinar]"}, contados a partir da assinatura deste contrato ou da data do evento, o que for aplicável.`,
+    "____________________________________",
+    `CONTRATANTE — ${b(form.cliente, "nome")}`,
     "",
-    "CLÁUSULA 3ª — DO VALOR E FORMA DE PAGAMENTO",
-    `Pelos serviços descritos, a CONTRATANTE pagará à CONTRATADA o valor total de ${brl(valorTotal)}, via ${form.formaPagamento || "[forma de pagamento]"}, da seguinte forma:`,
-    ...linhasParcelas,
+    "____________________________________",
+    `CONTRATADA — ${b(e.razaoSocial, "razão social")} — CNPJ ${b(e.cnpj, "CNPJ")}`,
     "",
-    "CLÁUSULA 4ª — DA VIGÊNCIA E DO FORO",
-    `O presente contrato vigora por ${form.vigenciaMeses || "[vigência]"} meses a partir de sua assinatura. Fica eleito o foro da comarca de ${form.foro || "[cidade]"} para dirimir quaisquer controvérsias oriundas deste instrumento.`,
+    "TESTEMUNHAS:",
     "",
-    "CLÁUSULA 5ª — DAS DISPOSIÇÕES GERAIS",
-    "Este documento é um rascunho gerado automaticamente pelo DieselFilms OS e deve ser revisado antes de qualquer assinatura formal.",
+    "1. ________________________________  Nome:                              CPF:",
     "",
-    "____________________________",
-    "CONTRATANTE",
-    "",
-    "____________________________",
-    "CONTRATADA — DieselFilms",
-  ].join("\n");
+    "2. ________________________________  Nome:                              CPF:",
+  );
+
+  return linhas.join("\n");
 };
 
-const buildContractHtml = (form) => buildContractText(form).split("\n").map((line) => {
-  if (!line.trim()) return `<p style="margin:0 0 10px">&nbsp;</p>`;
-  if (line === "CONTRATO DE PRESTAÇÃO DE SERVIÇOS AUDIOVISUAIS") return `<p style="font-weight:700;font-size:15px;margin:0 0 14px">${line}</p>`;
-  if (/^CLÁUSULA/.test(line)) return `<p style="font-weight:700;margin:14px 0 6px">${line}</p>`;
-  if (line.startsWith("- ")) return `<p style="margin:0 0 4px 16px">${line}</p>`;
-  return `<p style="margin:0 0 4px">${line}</p>`;
+function EmpresaModal({ empresa, onSave, onClose }) {
+  const [f, setF] = useState({ ...seedEmpresa(), ...empresa });
+  const campo = (k, label, placeholder) => (
+    <Field label={label}><input style={inputStyle} value={f[k] || ""} placeholder={placeholder} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></Field>
+  );
+  return (
+    <Modal medium icon={FileText} title="Dados da DieselFilms" sub="Aparecem em todo contrato gerado. O pagamento sempre vai pra conta do CNPJ." onClose={onClose}>
+      <SectionLabel>Empresa</SectionLabel>
+      <div className="grid gap-x-4 sm:grid-cols-2">
+        {campo("razaoSocial", "Razão social")}
+        {campo("cnpj", "CNPJ", "00.000.000/0001-00")}
+      </div>
+      {campo("endereco", "Endereço da sede", "Rua, número, bairro, cidade/UF, CEP")}
+      <div className="grid gap-x-4 sm:grid-cols-2">
+        {campo("representante", "Quem assina pela empresa", "Nome completo")}
+        {campo("cpfRepresentante", "CPF de quem assina")}
+        {campo("cidadeBase", "Cidade-base (sem cobrança de deslocamento)", "Ex: Guarulhos/SP")}
+        {campo("email", "E-mail da empresa")}
+      </div>
+      <SectionLabel>Conta para pagamento (do CNPJ)</SectionLabel>
+      <div className="grid gap-x-4 sm:grid-cols-2">
+        {campo("banco", "Banco", "Ex: Banco Inter (077)")}
+        {campo("agencia", "Agência")}
+        {campo("conta", "Conta", "Com dígito")}
+        <Field label="Tipo de conta">
+          <select style={inputStyle} value={f.tipoConta} onChange={(e) => setF({ ...f, tipoConta: e.target.value })}>
+            <option>Conta corrente</option><option>Conta pagamento</option><option>Conta poupança</option>
+          </select>
+        </Field>
+      </div>
+      {campo("chavePix", "Chave Pix", "De preferência o próprio CNPJ")}
+      <div className="flex items-center justify-end gap-3 pt-5 mt-2" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+        <GhostBtn onClick={onClose}>Cancelar</GhostBtn>
+        <PrimaryBtn onClick={() => { onSave(f); toastSuccess("Dados da empresa salvos."); onClose(); }}><Check size={16} />Salvar</PrimaryBtn>
+      </div>
+    </Modal>
+  );
+}
+
+const escHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const buildContractHtml = (form, empresa) => buildContractText(form, empresa).split("\n").map((raw) => {
+  const line = escHtml(raw);
+  if (!line.trim()) return `<p style="margin:0 0 8px">&nbsp;</p>`;
+  if (raw === TITULO_CONTRATO) return `<p style="font-weight:700;font-size:16px;text-align:center;margin:0 0 18px;letter-spacing:0.02em">${line}</p>`;
+  if (/^CLÁUSULA/.test(raw)) return `<p style="font-weight:700;margin:16px 0 6px">${line}</p>`;
+  if (/^(CONTRATANTE|CONTRATADA):/.test(raw)) return `<p style="margin:0 0 4px;text-align:justify"><b>${line.split(":")[0]}:</b>${line.slice(line.indexOf(":") + 1)}</p>`;
+  if (raw.startsWith("- ")) return `<p style="margin:0 0 4px 22px">${line.slice(2)}</p>`;
+  if (/^\d+\.\d+\. /.test(raw)) {
+    const [num, ...resto] = line.split(" ");
+    return `<p style="margin:0 0 6px;text-align:justify"><b>${num}</b> ${resto.join(" ")}</p>`;
+  }
+  return `<p style="margin:0 0 4px;text-align:justify">${line}</p>`;
 }).join("");
 
 const baixarContratoDoc = (titulo, html) => {
@@ -2040,7 +2282,9 @@ const baixarContratoDoc = (titulo, html) => {
   URL.revokeObjectURL(url);
 };
 
-function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile, logActivity = () => {} }) {
+function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile, logActivity = () => {}, empresa: empresaSalva, setEmpresa }) {
+  const empresa = { ...seedEmpresa(), ...(empresaSalva || {}) };
+  const [empresaOpen, setEmpresaOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState("quadro");
   const [editingId, setEditingId] = useState(null);
@@ -2056,14 +2300,11 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   const startNew = () => { resetForm(); setDocTouched(false); setPreviewVisible(!isMobile); setOpen(true); };
   const startEdit = (c) => {
     const n = Math.max(1, Number(c.numParcelas) || 1);
+    const { id: _id, corpoHtml: _corpo, ...campos } = c;
     setForm({
-      titulo: c.titulo, cliente: c.cliente, tipoDocumento: c.tipoDocumento || "CNPJ", documento: c.documento || "",
-      representante: c.representante || "", cpfRepresentante: c.cpfRepresentante || "", endereco: c.endereco || "",
-      tipo: c.tipo, escopo: c.escopo || "", prazo: c.prazo || "",
-      valor: String(c.valor), formaPagamento: c.formaPagamento || "Pix",
-      numParcelas: n, momentos: (c.momentos && c.momentos.length === n) ? c.momentos : Array.from({ length: n }, (_, i) => defaultMomento(i, n)),
-      vigenciaMeses: c.vigenciaMeses || "", foro: c.foro || "",
-      status: c.status,
+      ...emptyContratoForm(), ...campos,
+      valor: String(c.valor), numParcelas: n,
+      momentos: (c.momentos && c.momentos.length === n) ? c.momentos : Array.from({ length: n }, (_, i) => defaultMomento(i, n)),
     });
     setEditingId(c.id);
     setDocTouched(true);
@@ -2092,19 +2333,19 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     if (initRef.current === key) return;
     initRef.current = key;
     const contratoAtual = editingId ? contratos.find((c) => c.id === editingId) : null;
-    const html = contratoAtual?.corpoHtml || buildContractHtml(form);
+    const html = contratoAtual?.corpoHtml || buildContractHtml(form, empresa);
     requestAnimationFrame(() => { if (docRef.current) docRef.current.innerHTML = html; });
   }, [open, editingId]);
 
   // mantem a previa sincronizada com os campos ate o usuario editar o texto na mao
   useEffect(() => {
     if (!open || docTouched || !docRef.current) return;
-    docRef.current.innerHTML = buildContractHtml(form);
-  }, [form, open, docTouched]);
+    docRef.current.innerHTML = buildContractHtml(form, empresa);
+  }, [form, open, docTouched, empresaSalva]);
 
   const regenerarPrevia = () => {
     setDocTouched(false);
-    if (docRef.current) docRef.current.innerHTML = buildContractHtml(form);
+    if (docRef.current) docRef.current.innerHTML = buildContractHtml(form, empresa);
   };
 
   const remove = (id) => {
@@ -2119,19 +2360,19 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
   };
 
   const copyContract = (c) => {
-    navigator.clipboard?.writeText(buildContractText(c)).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."));
+    navigator.clipboard?.writeText(buildContractText(c, empresa)).catch(() => toastError("Não deu pra copiar. Selecione e copie manualmente."));
     setCopiedId(c.id);
     setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
   };
 
   const baixar = () => {
-    const html = docRef.current ? docRef.current.innerHTML : buildContractHtml(form);
+    const html = docRef.current ? docRef.current.innerHTML : buildContractHtml(form, empresa);
     baixarContratoDoc(form.titulo, html);
   };
 
   const gerarESalvar = () => {
     if (!form.titulo.trim()) { toastError("Dê um título ao contrato antes de salvar."); return; }
-    const corpoHtml = docRef.current ? docRef.current.innerHTML : buildContractHtml(form);
+    const corpoHtml = docRef.current ? docRef.current.innerHTML : buildContractHtml(form, empresa);
     const id = editingId || uid();
     const payload = { ...form, valor: Number(form.valor) || 0, corpoHtml };
     if (editingId) {
@@ -2233,6 +2474,10 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
                 {editingId ? "Editar contrato" : "Novo contrato"}
               </h3>
               <div className="flex items-center gap-3">
+                <button onClick={() => setEmpresaOpen(true)}
+                  className="df-btn-ghost text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5" style={{ color: empresa.cnpj ? C.textDim : C.amber, border: `1px solid ${empresa.cnpj ? C.border : "rgba(217,164,65,0.5)"}`, fontFamily: "Inter" }}>
+                  <Settings size={13} />Dados da DieselFilms
+                </button>
                 <button onClick={() => setPreviewVisible(!previewVisible)}
                   className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
                   {previewVisible ? "Ocultar prévia" : "Mostrar prévia"}
@@ -2256,6 +2501,29 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
                     </datalist>
                   </Field>
                 </div>
+                <div className="mb-1">
+                  <span className="block text-[13px] font-medium mb-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>Modalidade</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[{ id: "Avulso", sub: "Projeto único" }, { id: "Mensal", sub: "Serviço recorrente" }].map((m) => {
+                      const sel = form.modalidade === m.id;
+                      return (
+                        <button key={m.id} type="button" onClick={() => setForm({ ...form, modalidade: m.id })}
+                          className="df-btn-ghost rounded-xl px-3 py-2 text-left"
+                          style={{ background: sel ? "rgba(201,162,39,0.14)" : "transparent", border: `1px solid ${sel ? "rgba(201,162,39,0.6)" : C.border}`, fontFamily: "Inter" }}>
+                          <div className="text-sm font-semibold" style={{ color: sel ? C.goldBright : C.text }}>{m.id}</div>
+                          <div className="text-xs" style={{ color: C.textFaint }}>{m.sub}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {!empresa.cnpj && (
+                  <button type="button" onClick={() => setEmpresaOpen(true)} className="w-full text-left text-xs rounded-lg px-3 py-2 mt-3 flex items-start gap-2"
+                    style={{ background: "rgba(217,164,65,0.08)", border: "1px solid rgba(217,164,65,0.35)", color: C.amber, fontFamily: "Inter" }}>
+                    <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    Preencha o CNPJ e a conta bancária da DieselFilms pra aparecerem no contrato. Clique aqui.
+                  </button>
+                )}
 
                 <SectionLabel>Contratante</SectionLabel>
                 <Field label="Título do contrato"><input style={inputStyle} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex: Cobertura de casamento completa" /></Field>
@@ -2275,13 +2543,53 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
                 <Field label="Endereço completo">
                   <textarea style={{ ...inputStyle, height: 52, resize: "vertical" }} value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
                 </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="E-mail do cliente"><input style={inputStyle} value={form.emailCliente} onChange={(e) => setForm({ ...form, emailCliente: e.target.value })} /></Field>
+                  <Field label="Telefone/WhatsApp"><input style={inputStyle} value={form.telefoneCliente} onChange={(e) => setForm({ ...form, telefoneCliente: e.target.value })} /></Field>
+                </div>
 
                 <SectionLabel>Objeto e serviços</SectionLabel>
-                <Field label="Serviços (o que será entregue)">
-                  <textarea style={{ ...inputStyle, height: 72, resize: "vertical" }} placeholder="Ex: filmagem da cerimônia e festa, edição de teaser e filme completo"
+                <Field label={form.modalidade === "Mensal" ? "Entregas de cada mês (seja específico)" : "Serviços (o que será entregue — seja específico)"}>
+                  <textarea style={{ ...inputStyle, height: 84, resize: "vertical" }}
+                    placeholder={form.modalidade === "Mensal" ? "Ex: 8 vídeos verticais de até 60s por mês, 2 diárias de captação de 4h, legendas" : "Ex: filmagem da cerimônia e festa, teaser de 1 min e filme de 10 a 15 min"}
                     value={form.escopo} onChange={(e) => setForm({ ...form, escopo: e.target.value })} />
                 </Field>
-                <Field label="Prazo de desenvolvimento"><input style={inputStyle} placeholder="Ex: 20 a 25 dias úteis" value={form.prazo} onChange={(e) => setForm({ ...form, prazo: e.target.value })} /></Field>
+
+                <SectionLabel>Captação e prazos</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Data da captação"><input style={inputStyle} value={form.dataCaptacao} onChange={(e) => setForm({ ...form, dataCaptacao: e.target.value })} placeholder="Ex: 14/11/2026, às 15h" /></Field>
+                  <Field label="Local da captação"><input style={inputStyle} value={form.localCaptacao} onChange={(e) => setForm({ ...form, localCaptacao: e.target.value })} placeholder="Ex: Espaço X, Guarulhos/SP" /></Field>
+                  <Field label="Horas de captação"><input type="number" style={inputStyle} value={form.horasCaptacao} onChange={(e) => setForm({ ...form, horasCaptacao: e.target.value })} placeholder="Ex: 6" /></Field>
+                  <Field label="Valor da hora extra (R$)"><input type="number" style={inputStyle} value={form.valorHoraExtra} onChange={(e) => setForm({ ...form, valorHoraExtra: e.target.value })} placeholder="Ex: 250" /></Field>
+                  <Field label="Prazo pra concluir tudo (dias)"><input type="number" style={inputStyle} value={form.prazoConclusaoDias} onChange={(e) => setForm({ ...form, prazoConclusaoDias: e.target.value })} /></Field>
+                  <Field label="Entrega da edição"><input style={inputStyle} placeholder="Ex: 20 dias úteis" value={form.prazo} onChange={(e) => setForm({ ...form, prazo: e.target.value })} /></Field>
+                  <Field label="Rodadas de ajuste incluídas"><input type="number" style={inputStyle} value={form.rodadasAjuste} onChange={(e) => setForm({ ...form, rodadasAjuste: e.target.value })} /></Field>
+                  <Field label="Dias pro cliente aprovar"><input type="number" style={inputStyle} value={form.diasAprovacao} onChange={(e) => setForm({ ...form, diasAprovacao: e.target.value })} /></Field>
+                </div>
+                <div className="text-[11px] -mt-2 mb-2" style={{ color: C.textFaint, fontFamily: "Inter", lineHeight: 1.5 }}>
+                  Passou do prazo pra concluir por culpa do cliente (não agendou, não aprovou, não mandou material), o valor inteiro fica devido.
+                </div>
+
+                <SectionLabel>Deslocamento e despesas</SectionLabel>
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <Field label="Deslocamento / logística (R$)"><input type="number" style={inputStyle} value={form.deslocamento} onChange={(e) => setForm({ ...form, deslocamento: e.target.value })} placeholder="Do orçamento" /></Field>
+                  <label className="flex items-center gap-2 text-sm mb-6 cursor-pointer" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                    <input type="checkbox" checked={!!form.deslocamentoIncluso} onChange={(e) => setForm({ ...form, deslocamentoIncluso: e.target.checked })} />
+                    Já incluso no valor total
+                  </label>
+                </div>
+
+                <SectionLabel>Direitos de imagem</SectionLabel>
+                <Field label="O cliente pode usar o vídeo como?">
+                  <select style={inputStyle} value={form.usoImagem || usoPadrao(form.tipo)} onChange={(e) => setForm({ ...form, usoImagem: e.target.value })}>
+                    <option value="pessoal">Uso pessoal (não comercial)</option>
+                    <option value="comercial">Uso comercial nos canais do cliente</option>
+                  </select>
+                </Field>
+                <label className="flex items-center gap-2 text-sm mb-2 cursor-pointer" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                  <input type="checkbox" checked={!!form.usoPortfolio} onChange={(e) => setForm({ ...form, usoPortfolio: e.target.checked })} />
+                  DieselFilms pode usar no portfólio e redes sociais
+                </label>
 
                 <SectionLabel>Honorários</SectionLabel>
                 <div className="grid grid-cols-2 gap-3">
@@ -2313,9 +2621,15 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
                   <div className="text-[11px] mt-1.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>Os valores são divididos automaticamente a partir do valor total.</div>
                 </Field>
 
-                <SectionLabel>Vigência e foro</SectionLabel>
+                {form.modalidade === "Mensal" && (
+                  <Field label="Dia de vencimento de cada mês"><input type="number" style={inputStyle} value={form.diaVencimento} onChange={(e) => setForm({ ...form, diaVencimento: e.target.value })} placeholder="Ex: 5" /></Field>
+                )}
+
+                <SectionLabel>{form.modalidade === "Mensal" ? "Vigência e foro" : "Foro"}</SectionLabel>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Vigência (meses)"><input type="number" style={inputStyle} value={form.vigenciaMeses} onChange={(e) => setForm({ ...form, vigenciaMeses: e.target.value })} /></Field>
+                  {form.modalidade === "Mensal" && (
+                    <Field label="Vigência (meses)"><input type="number" style={inputStyle} value={form.vigenciaMeses} onChange={(e) => setForm({ ...form, vigenciaMeses: e.target.value })} /></Field>
+                  )}
                   <Field label="Foro (cidade)"><input style={inputStyle} value={form.foro} onChange={(e) => setForm({ ...form, foro: e.target.value })} /></Field>
                 </div>
 
@@ -2354,6 +2668,7 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
           </div>
         </div>
       )}
+      {empresaOpen && <EmpresaModal empresa={empresa} onSave={(v) => setEmpresa && setEmpresa(v)} onClose={() => setEmpresaOpen(false)} />}
     </div>
   );
 }
@@ -4288,6 +4603,7 @@ const BACKUP_KEYS = [
   { key: "df_equipe", label: "Acesso (equipe)" },
   { key: "df_orcamentos", label: "Orçamentos" },
   { key: "df_precificacao", label: "Precificação" },
+  { key: "df_empresa", label: "Dados da empresa" },
 ];
 
 function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logActivity = () => {} }) {
@@ -4648,6 +4964,7 @@ export default function DieselFilmsOS() {
   const [equipe, setEquipe, equipeLoaded] = useSharedState("df_equipe", seedEquipe);
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSharedState("df_orcamentos", seedOrcamentos);
   const [precificacao, setPrecificacao, precificacaoLoaded] = useSharedState("df_precificacao", seedPrecificacao);
+  const [empresa, setEmpresa, empresaLoaded] = useSharedState("df_empresa", seedEmpresa);
   const [activity, setActivity, activityLoaded] = useSharedState("df_activity", () => []);
 
   const [sessionUserId, setSessionUserId] = useState(undefined); // undefined = ainda carregando
@@ -4665,7 +4982,7 @@ export default function DieselFilmsOS() {
     })();
   }, []);
 
-  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && activityLoaded && sessionUserId !== undefined;
+  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && empresaLoaded && activityLoaded && sessionUserId !== undefined;
 
   const [showRetry, setShowRetry] = useState(false);
   useEffect(() => {
@@ -4733,7 +5050,7 @@ export default function DieselFilmsOS() {
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} logActivity={logActivity} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} logActivity={logActivity} />}
       {activeSafe === "orcamentos" && canSee("orcamentos") && <OrcamentosModule orcamentos={orcamentos} setOrcamentos={setOrcamentos} leads={leads} precificacao={precificacao} setPrecificacao={setPrecificacao} />}
-      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} logActivity={logActivity} />}
+      {activeSafe === "contratos" && canSee("contratos") && <ContratosModule contratos={contratos} setContratos={setContratos} clientes={clientes} financeiro={financeiro} setFinanceiro={setFinanceiro} isMobile={isMobile} logActivity={logActivity} empresa={empresa} setEmpresa={setEmpresa} />}
       {activeSafe === "clientes" && canSee("clientes") && <ClientesModule clientes={clientes} setClientes={setClientes} equipe={equipe} contratos={contratos} logActivity={logActivity} />}
       {activeSafe === "equipe" && canSee("equipe") && <EquipeModule equipe={equipe} setEquipe={setEquipe} currentUserId={currentUser.id} currentUserPapel={currentUser.papel} logActivity={logActivity} />}
       {allowedNav.length === 0 && (

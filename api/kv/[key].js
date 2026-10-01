@@ -25,6 +25,7 @@ const KEY_MODULE = {
   df_contratos: "contratos",
   df_orcamentos: "orcamentos",
   df_precificacao: "orcamentos",
+  df_empresa: "contratos",
   // df_equipe tem regra propria (ver abaixo) e df_activity fica liberado pra
   // qualquer pessoa logada -- e o log cruzado de acao de todo mundo em todo
   // modulo, precisa poder ser escrito por quem faz qualquer acao no sistema.
