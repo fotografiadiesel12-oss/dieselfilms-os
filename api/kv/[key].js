@@ -26,15 +26,17 @@ const KEY_MODULE = {
   df_orcamentos: "orcamentos",
   df_precificacao: "orcamentos",
   df_empresa: "contratos",
-  // df_equipe tem regra propria (ver abaixo) e df_activity fica liberado pra
-  // qualquer pessoa logada -- e o log cruzado de acao de todo mundo em todo
-  // modulo, precisa poder ser escrito por quem faz qualquer acao no sistema.
+  // df_equipe e df_activity tem regra propria (ver abaixo) -- o historico so
+  // os donos leem; o resto da equipe registra acoes pelo /api/activity.
 };
+
+const CARGOS_DONO = ["Dono", "Sócio"];
 
 function podeAcessar(member, key) {
   if (!member) return false;
+  // histórico (auditoria) é só dos donos -- quem não é dono registra pelo /api/activity
+  if (key === "df_activity") return CARGOS_DONO.includes(member.papel);
   if (CARGOS_GESTAO.includes(member.papel)) return true;
-  if (key === "df_activity") return true;
   const modulo = KEY_MODULE[key];
   if (!modulo) return false; // chave desconhecida -- nega por padrao
   return (member.modulos || []).includes(modulo);
@@ -65,6 +67,10 @@ export default async function handler(req, res) {
   const podeEscrever = isEquipe ? CARGOS_GESTAO.includes(member.papel) : podeAcessar(member, key);
 
   if (req.method === "GET") {
+    if (key === "df_activity" && !CARGOS_DONO.includes(member.papel)) {
+      res.status(403).json({ error: "Só os donos veem o histórico." });
+      return;
+    }
     let raw = await kv.get(fullKey);
     // equipe nunca deve sair do servidor com a senha de ninguem (hash/sal, ou
     // texto puro nas contas antigas que ainda nao logaram desde a migracao) --

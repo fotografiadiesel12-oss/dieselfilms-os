@@ -84,3 +84,10 @@ input[type="checkbox"] { accent-color: #C9A227; width: 15px; height: 15px; }
 .thin-scroll::-webkit-scrollbar-thumb:hover {
   background: #3a352e;
 }
+
+/* ---------- paineis, linhas e cards do quadro ---------- */
+.df-row { transition: background 0.15s ease; }
+.df-row:hover { background: #1C1A17 !important; }
+.df-kcard { transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+.df-kcard:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4); border-color: rgba(201, 162, 39, 0.38) !important; }
+.df-bar { transition: width 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }

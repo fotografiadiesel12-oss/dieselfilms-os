@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -21,6 +21,7 @@ import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js"
 import { uploadImagem, uploadMidia } from "./lib/mediaApi.js";
 import { hashPassword } from "./lib/authClient.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
+import { listarAtividade, registrarAtividade } from "./lib/activityApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
@@ -361,16 +362,50 @@ function useSharedState(key, seedFn) {
 /* ---------------------------------------------------------
    PRIMITIVES
 --------------------------------------------------------- */
-function StatCard({ icon: Icon, label, value, sub, subColor }) {
+const TONE_HEX = { gold: "#C9A227", green: "#6FBF8B", red: "#D2685B", blue: "#7B9BB0", violet: "#B79EEA", amber: "#D9A441", neutral: "#A69F8E" };
+
+// tone muda a cor do ícone e da linha de destaque do card
+function StatCard({ icon: Icon, label, value, sub, subColor, tone = "gold" }) {
+  const cor = TONE_HEX[tone] || TONE_HEX.gold;
   return (
-    <div className="df-card rounded-2xl p-5 flex-1 min-w-[190px]"
-      style={{ background: `linear-gradient(180deg, #1A1916, ${C.surface})`, border: `1px solid ${C.border}` }}>
-      <div className="flex items-center gap-2 mb-3" style={{ color: C.textDim }}>
-        <Icon size={15} />
-        <span className="text-xs tracking-wide uppercase" style={{ fontFamily: "Inter" }}>{label}</span>
+    <div className="df-card relative overflow-hidden rounded-2xl p-5 flex-1 min-w-[190px]" style={PANEL}>
+      <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${cor}, transparent 75%)` }} />
+      <div className="absolute -right-8 -top-10 w-28 h-28 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${cor}22, transparent 70%)` }} />
+      <div className="flex items-center gap-2.5 mb-3.5">
+        <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${cor}1F`, color: cor }}>
+          <Icon size={16} />
+        </span>
+        <span className="text-[11px] tracking-wider uppercase font-medium" style={{ color: C.textDim, fontFamily: "Inter" }}>{label}</span>
       </div>
-      <div className="text-2xl font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{value}</div>
-      {sub && <div className="text-xs mt-2" style={{ color: subColor || C.textFaint }}>{sub}</div>}
+      <div className="text-[1.7rem] leading-none font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{value}</div>
+      {sub && <div className="text-xs mt-2.5" style={{ color: subColor || C.textFaint, fontFamily: "Inter" }}>{sub}</div>}
+    </div>
+  );
+}
+
+// estado vazio padrão (ícone + frase + ação opcional)
+function EmptyState({ icon: Icon = Film, title, sub, action }) {
+  return (
+    <div className="rounded-2xl px-6 py-12 flex flex-col items-center text-center" style={{ background: "rgba(255,255,255,0.015)", border: `1px dashed ${C.border}` }}>
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: "rgba(201,162,39,0.1)", color: C.goldBright, border: "1px solid rgba(201,162,39,0.22)" }}>
+        <Icon size={24} />
+      </div>
+      <div className="text-lg font-semibold mb-1" style={{ color: C.text, fontFamily: "Fraunces" }}>{title}</div>
+      {sub && <div className="text-sm mb-4 max-w-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>{sub}</div>}
+      {action}
+    </div>
+  );
+}
+
+// título de painel com ícone
+function PanelTitle({ icon: Icon, children, right }) {
+  return (
+    <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex items-center gap-2.5">
+        {Icon && <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)", color: C.goldBright }}><Icon size={15} /></span>}
+        <span className="text-[15px] font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{children}</span>
+      </div>
+      {right}
     </div>
   );
 }
@@ -448,6 +483,7 @@ function ToastHost() {
 const PAPEIS = ["Dono", "Sócio", "Admin", "Financeiro", "Editor", "Membro"];
 const papelTone = { Dono: "gold", "Sócio": "violet", Admin: "blue", Financeiro: "green", Editor: "amber", Membro: "neutral" };
 const CARGOS_GESTAO = ["Dono", "Sócio", "Admin"];
+const CARGOS_DONO = ["Dono", "Sócio"];
 
 const priorityTone = { Urgente: "red", Alta: "amber", Normal: "blue", Baixa: "neutral" };
 const statusTone = {
@@ -539,27 +575,35 @@ function Modal({ title, sub, icon: Icon, onClose, children, wide, medium }) {
 --------------------------------------------------------- */
 function ViewToggle({ view, setView, options }) {
   return (
-    <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0" style={{ border: `1px solid ${C.border}` }}>
-      {options.map((o) => (
-        <button key={o.id} onClick={() => setView(o.id)} className="p-2"
-          style={{ background: view === o.id ? C.surfaceHover : "transparent", color: view === o.id ? C.text : C.textFaint }}
-          title={o.title}>
-          <o.icon size={15} />
-        </button>
-      ))}
+    <div className="flex items-center gap-0.5 p-1 rounded-xl flex-shrink-0" style={{ background: C.bgSoft, border: `1px solid ${C.border}` }}>
+      {options.map((o) => {
+        const ativo = view === o.id;
+        return (
+          <button key={o.id} onClick={() => setView(o.id)} title={o.title} aria-pressed={ativo}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: ativo ? "rgba(201,162,39,0.16)" : "transparent", color: ativo ? C.goldBright : C.textFaint, fontFamily: "Inter" }}>
+            <o.icon size={15} />{o.title}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
+const KanbanToneCtx = React.createContext("neutral");
+
 function KanbanCard({ id, onClick, children }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  const tone = React.useContext(KanbanToneCtx);
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} onClick={onClick}
-      className="rounded-lg p-3 text-left"
+      className="df-kcard rounded-xl p-3.5 text-left relative overflow-hidden"
       style={{
-        background: C.surface, border: `1px solid ${C.border}`, touchAction: "none",
+        background: "linear-gradient(180deg, #1C1B18, #171613)", border: `1px solid ${C.border}`, touchAction: "none",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
         cursor: isDragging ? "grabbing" : "grab", opacity: isDragging ? 0.3 : 1,
       }}>
+      <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r" style={{ background: TONE_HEX[tone] || TONE_HEX.neutral, opacity: 0.85 }} />
       {children}
     </div>
   );
@@ -567,18 +611,24 @@ function KanbanCard({ id, onClick, children }) {
 
 function KanbanColumn({ id, label, tone, count, isOver, emptyLabel, children }) {
   const { setNodeRef } = useDroppable({ id });
+  const cor = TONE_HEX[tone] || TONE_HEX.neutral;
   return (
-    <div className="flex-shrink-0" style={{ width: 272 }}>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <Pill tone={tone}>{label}</Pill>
-        <span className="text-xs" style={{ color: C.textFaint }}>{count}</span>
+    <div className="flex-shrink-0 rounded-2xl flex flex-col" style={{ width: 290, background: "rgba(255,255,255,0.018)", border: `1px solid ${C.borderSoft}` }}>
+      <div className="flex items-center justify-between px-3.5 pt-3.5 pb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: cor, boxShadow: `0 0 10px ${cor}88` }} />
+          <span className="text-sm font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{label}</span>
+        </div>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${cor}22`, color: cor, fontFamily: "Inter" }}>{count}</span>
       </div>
-      <div ref={setNodeRef} className="flex flex-col gap-2 rounded-xl"
-        style={{ minHeight: 60, padding: 6, background: isOver ? C.surfaceHover : "transparent", transition: "background 0.12s" }}>
+      <div ref={setNodeRef} className="flex flex-col gap-2.5 rounded-xl mx-2 mb-2 flex-1"
+        style={{ minHeight: 90, padding: 4, background: isOver ? "rgba(201,162,39,0.08)" : "transparent", outline: isOver ? `1px dashed ${C.gold}` : "none", transition: "background 0.12s" }}>
         {count === 0 && (
-          <div className="text-xs rounded-lg p-3 text-center" style={{ color: C.textFaint, background: C.surface, border: `1px dashed ${C.border}` }}>{emptyLabel}</div>
+          <div className="text-xs rounded-xl px-3 py-6 text-center flex flex-col items-center gap-1.5" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>
+            <Plus size={15} style={{ opacity: 0.6 }} />{emptyLabel}
+          </div>
         )}
-        {children}
+        <KanbanToneCtx.Provider value={tone}>{children}</KanbanToneCtx.Provider>
       </div>
     </div>
   );
@@ -608,7 +658,7 @@ function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, o
         if (item && getColumnId(item) !== over.id) onMove(item, over.id);
       }}
       onDragCancel={() => { setActiveId(null); setOverId(null); }}>
-      <div className="flex gap-4 overflow-x-auto thin-scroll pb-2">
+      <div className="flex gap-4 overflow-x-auto thin-scroll pb-3 items-stretch">
         {grouped.map((col) => (
           <KanbanColumn key={col.id} id={col.id} label={col.label} tone={col.tone} count={col.items.length} isOver={overId === col.id} emptyLabel={emptyLabel}>
             {col.items.map((item) => (
@@ -620,7 +670,7 @@ function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, o
         ))}
       </div>
       <DragOverlay>
-        {activeItem ? <div style={{ width: 272, borderRadius: 8, boxShadow: "0 16px 32px rgba(0,0,0,0.55)" }}>{renderCard(activeItem)}</div> : null}
+        {activeItem ? <div className="rounded-xl p-3.5" style={{ width: 280, background: "#201E1A", border: `1px solid ${C.gold}`, boxShadow: "0 24px 48px rgba(0,0,0,0.6)", transform: "rotate(2deg)", cursor: "grabbing" }}>{renderCard(activeItem)}</div> : null}
       </DragOverlay>
     </DndContext>
   );
@@ -634,6 +684,9 @@ function Field({ label, children }) {
     </label>
   );
 }
+
+// fundo padrão dos painéis (gradiente sutil + sombra)
+const PANEL = { background: "linear-gradient(180deg, #1B1A17 0%, #151412 100%)", border: `1px solid ${C.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.22)" };
 
 const inputStyle = {
   width: "100%", background: C.bgSoft, border: `1px solid ${C.border}`,
@@ -776,31 +829,34 @@ function LoginScreen({ onLogin }) {
       <style>{FONTS}</style>
 
       {/* lado esquerdo: marca (só em tela grande) */}
-      <div className="hidden lg:flex relative flex-col justify-between overflow-hidden"
-        style={{ flex: "1 1 55%", background: "radial-gradient(120% 90% at 20% 15%, #3A2C0C 0%, #1A150A 38%, #0B0A08 75%)" }}>
-        <div className="absolute df-glow" style={{ width: 680, height: 680, left: "10%", top: "8%", borderRadius: "50%", background: "radial-gradient(circle, rgba(201,162,39,0.22), transparent 62%)" }} />
+      <div className="hidden lg:flex relative flex-col items-center justify-center overflow-hidden px-16 py-14"
+        style={{ flex: "1 1 55%", background: "radial-gradient(90% 75% at 50% 42%, #3A2C0C 0%, #1A150A 42%, #0B0A08 78%)" }}>
+        <div className="absolute df-glow" style={{ width: 640, height: 640, left: "50%", top: "40%", transform: "translate(-50%, -50%)", borderRadius: "50%", background: "radial-gradient(circle, rgba(201,162,39,0.28), transparent 62%)" }} />
         <div className="absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 72px)" }} />
         <div className="absolute inset-y-0 right-0 w-40" style={{ background: "linear-gradient(90deg, transparent, #0A0A09)" }} />
         <Sprockets />
 
-        <div className="relative px-20 pt-16 df-fade-up">
-          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 168, height: "auto", filter: "drop-shadow(0 10px 40px rgba(201,162,39,0.35))" }} />
-        </div>
+        <div className="relative flex flex-col items-center text-center df-fade-up">
+          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 230, height: "auto", filter: "drop-shadow(0 14px 50px rgba(201,162,39,0.45))" }} />
 
-        <div className="relative px-20 pb-16 df-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="text-xs tracking-[0.3em] uppercase mb-5" style={{ color: C.goldBright, fontFamily: "Inter" }}>Sistema de gestão</div>
-          <h1 className="text-6xl font-semibold leading-[1.05] mb-6" style={{ fontFamily: "Fraunces", color: C.text, maxWidth: 620, letterSpacing: "-0.02em" }}>
-            Do primeiro contato <span style={{ color: C.goldBright, fontStyle: "italic" }}>à entrega final.</span>
+          <h1 className="text-5xl font-semibold leading-[1.1] mt-12 mb-5" style={{ fontFamily: "Fraunces", color: C.text, maxWidth: 600, letterSpacing: "-0.02em" }}>
+            Cada take conta <span style={{ color: C.goldBright, fontStyle: "italic" }}>uma história.</span>
           </h1>
-          <p className="text-lg mb-9" style={{ color: C.textDim, fontFamily: "Inter", maxWidth: 500, lineHeight: 1.6 }}>
-            Leads, demandas, orçamentos, contratos e financeiro da equipe DieselFilms num só lugar.
+          <p className="text-lg mb-10" style={{ color: C.textDim, fontFamily: "Inter", maxWidth: 460, lineHeight: 1.6 }}>
+            Hoje é dia de criar algo que vale a pena assistir.
           </p>
-          <div className="flex flex-wrap gap-2.5">
-            {[{ icon: Radar, label: "Leads" }, { icon: ListChecks, label: "Demandas" }, { icon: Receipt, label: "Orçamentos" }, { icon: FileText, label: "Contratos" }, { icon: Wallet, label: "Financeiro" }].map(({ icon: Icon, label }) => (
-              <span key={label} className="flex items-center gap-2 px-3.5 py-2 rounded-full text-sm"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,162,39,0.22)", color: C.text, fontFamily: "Inter", backdropFilter: "blur(4px)" }}>
-                <Icon size={15} color={C.goldBright} />{label}
-              </span>
+
+          <div className="flex items-center gap-3">
+            {[
+              { href: "https://www.instagram.com/dieselfilms_/", icon: Instagram, label: "@dieselfilms_" },
+              { href: "https://diesel-filmes.vercel.app/", icon: Globe, label: "Nosso site" },
+            ].map(({ href, icon: Icon, label }) => (
+              <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                className="df-btn-ghost flex items-center gap-2.5 pl-2 pr-4 py-2 rounded-full text-sm font-medium"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,162,39,0.3)", color: C.text, fontFamily: "Inter", backdropFilter: "blur(4px)" }}>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(201,162,39,0.16)", color: C.goldBright }}><Icon size={16} /></span>
+                {label}
+              </a>
             ))}
           </div>
         </div>
@@ -1170,10 +1226,26 @@ function tempoRelativo(iso) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity = [], isMobile }) {
+function saudacao() {
+  const h = new Date().getHours();
+  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+}
+
+function MiniAvatar({ user, nome, size = 30 }) {
+  const n = user?.nome || nome || "";
+  const ini = n.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className="rounded-full flex items-center justify-center font-semibold overflow-hidden flex-shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.36, background: toneForName(n).bg, color: toneForName(n).color, fontFamily: "Inter" }}>
+      {user?.fotoUrl ? <img src={user.fotoUrl} alt="" className="w-full h-full object-cover" /> : ini}
+    </div>
+  );
+}
+
+function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity = [], isMobile, currentUser, mostrarAtividade }) {
   const recebido = financeiro.entradas.reduce((s, e) => s + Number(e.value), 0);
   const gasto = financeiro.saidas.reduce((s, e) => s + Number(e.value), 0);
-  const pct = Math.min(100, Math.round((recebido / financeiro.metaMes) * 100));
+  const pct = financeiro.metaMes ? Math.min(100, Math.round((recebido / financeiro.metaMes) * 100)) : 0;
   const emAtraso = demandas.filter((d) => d.status === "Alteracao").length;
   const emProducao = demandas.filter((d) => d.status !== "Entregue").length;
   const entregues = demandas.filter((d) => d.status === "Entregue").length;
@@ -1189,27 +1261,39 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
     .filter((b) => b.value > 0);
   const distribuicaoTotal = distribuicao.reduce((s, b) => s + b.value, 0);
   const toneHex = { red: C.red, amber: C.amber, blue: C.blue, green: C.green };
+  const hojeTxt = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const hoje = hojeTxt.charAt(0).toUpperCase() + hojeTxt.slice(1);
+  const R = 62;
+  const circ = 2 * Math.PI * R;
 
   return (
     <div>
-      <ModuleHeader title="Painel do estúdio" sub="Resumo geral da operação DieselFilms" />
+      <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
+        <div>
+          <div className="text-sm mb-1.5" style={{ color: C.goldBright, fontFamily: "Inter" }}>{hoje}</div>
+          <h1 style={{ fontFamily: "Fraunces", color: C.text, letterSpacing: "-0.01em" }} className="text-3xl font-semibold">
+            {saudacao()}, {currentUser?.nome?.split(" ")[0] || "equipe"} 👋
+          </h1>
+          <p className="text-[15px] mt-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>Aqui está o resumo do estúdio hoje.</p>
+        </div>
+      </div>
 
       <div className="flex gap-4 flex-wrap mb-6">
-        <StatCard icon={TrendingUp} label="Recebido no mês" value={brl(recebido)}
-          sub={`${pct}% da meta de ${brl(financeiro.metaMes)}`} subColor={C.gold} />
-        <StatCard icon={Clock} label="Em produção" value={emProducao} sub={`${emAtraso} em alteração`} subColor={emAtraso ? C.red : C.textFaint} />
-        <StatCard icon={Check} label="Entregues" value={entregues} sub="no período" />
-        <StatCard icon={Users} label="Clientes ativos" value={clientes.filter((c) => c.status === "Ativo").length} sub={`de ${clientes.length} cadastrados`} />
+        <StatCard tone="green" icon={TrendingUp} label="Recebido no mês" value={brl(recebido)}
+          sub={`${pct}% da meta de ${brl(financeiro.metaMes)}`} subColor={C.green} />
+        <StatCard tone="blue" icon={Clock} label="Em produção" value={emProducao} sub={emAtraso ? `${emAtraso} em alteração` : "nada em alteração"} subColor={emAtraso ? C.red : C.textFaint} />
+        <StatCard tone="gold" icon={Check} label="Entregues" value={entregues} sub="no período" />
+        <StatCard tone="violet" icon={Users} label="Clientes ativos" value={clientes.filter((c) => c.status === "Ativo").length} sub={`de ${clientes.length} cadastrados`} />
       </div>
 
       <div className="grid gap-5 mb-6" style={{ gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr" }}>
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Faturamento &mdash; últimos 6 meses</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={financeiro.faturamentoMensal}>
+        <div className="rounded-2xl p-6" style={PANEL}>
+          <PanelTitle icon={TrendingUp} right={<span className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>últimos 6 meses</span>}>Faturamento</PanelTitle>
+          <ResponsiveContainer width="100%" height={230}>
+            <AreaChart data={financeiro.faturamentoMensal} margin={{ top: 10, right: 6, left: -12, bottom: 0 }}>
               <defs>
                 <linearGradient id="goldFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={C.gold} stopOpacity={0.35} />
+                  <stop offset="0%" stopColor={C.gold} stopOpacity={0.45} />
                   <stop offset="100%" stopColor={C.gold} stopOpacity={0} />
                 </linearGradient>
               </defs>
@@ -1217,95 +1301,124 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
               <XAxis dataKey="mes" stroke={C.textFaint} tick={{ fontSize: 12, fontFamily: "Inter" }} axisLine={false} tickLine={false} />
               <YAxis stroke={C.textFaint} tick={{ fontSize: 11, fontFamily: "Inter" }} axisLine={false} tickLine={false}
                 tickFormatter={(v) => `${v / 1000}k`} />
-              <Tooltip contentStyle={{ background: C.bgSoft, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: "Inter" }}
-                labelStyle={{ color: C.text }} formatter={(v) => [brl(v), "Faturamento"]} />
-              <Area type="monotone" dataKey="valor" stroke={C.gold} strokeWidth={2} fill="url(#goldFill)" />
+              <Tooltip contentStyle={{ background: "#1E1D19", border: `1px solid ${C.border}`, borderRadius: 12, fontFamily: "Inter", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}
+                labelStyle={{ color: C.text }} itemStyle={{ color: C.goldBright }} formatter={(v) => [brl(v), "Faturamento"]}
+                cursor={{ stroke: C.gold, strokeDasharray: "4 4" }} />
+              <Area type="monotone" dataKey="valor" stroke={C.goldBright} strokeWidth={2.5} fill="url(#goldFill)"
+                activeDot={{ r: 6, fill: C.goldBright, stroke: C.bg, strokeWidth: 3 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Meta do mês</div>
-          <div className="flex flex-col items-center justify-center" style={{ height: 220 }}>
-            <div className="relative flex items-center justify-center" style={{ width: 130, height: 130 }}>
-              <svg width="130" height="130" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="65" cy="65" r="55" fill="none" stroke={C.border} strokeWidth="10" />
-                <circle cx="65" cy="65" r="55" fill="none" stroke={C.gold} strokeWidth="10"
-                  strokeDasharray={`${2 * Math.PI * 55}`}
-                  strokeDashoffset={`${2 * Math.PI * 55 * (1 - pct / 100)}`}
-                  strokeLinecap="round" />
+        <div className="rounded-2xl p-6 flex flex-col" style={PANEL}>
+          <PanelTitle icon={CheckCircle2}>Meta do mês</PanelTitle>
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="relative flex items-center justify-center" style={{ width: 160, height: 160 }}>
+              <svg width="160" height="160" style={{ transform: "rotate(-90deg)" }}>
+                <defs>
+                  <linearGradient id="metaGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor={C.goldBright} />
+                    <stop offset="100%" stopColor="#8A6A12" />
+                  </linearGradient>
+                </defs>
+                <circle cx="80" cy="80" r={R} fill="none" stroke={C.border} strokeWidth="12" />
+                <circle cx="80" cy="80" r={R} fill="none" stroke="url(#metaGrad)" strokeWidth="12"
+                  strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)} strokeLinecap="round"
+                  style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.2,0.8,0.2,1)", filter: "drop-shadow(0 0 6px rgba(201,162,39,0.45))" }} />
               </svg>
-              <div className="absolute text-2xl font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{pct}%</div>
+              <div className="absolute flex flex-col items-center">
+                <div className="text-3xl font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{pct}%</div>
+                <div className="text-[11px]" style={{ color: C.textFaint, fontFamily: "Inter" }}>da meta</div>
+              </div>
             </div>
-            <div className="text-xs mt-4 text-center" style={{ color: C.textFaint, fontFamily: "Inter" }}>
-              faltam {brl(Math.max(0, financeiro.metaMes - recebido))}
+            <div className="grid grid-cols-2 gap-3 w-full mt-5">
+              <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+                <div className="text-[11px]" style={{ color: C.textFaint, fontFamily: "Inter" }}>Falta</div>
+                <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{brl(Math.max(0, financeiro.metaMes - recebido))}</div>
+              </div>
+              <div className="rounded-xl px-3 py-2.5 text-center" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+                <div className="text-[11px]" style={{ color: C.textFaint, fontFamily: "Inter" }}>Despesas</div>
+                <div className="text-sm font-semibold" style={{ color: C.red, fontFamily: "Inter" }}>{brl(gasto)}</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl p-5 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Próximas entregas</div>
-        <div className="flex flex-col gap-1">
-          {proximas.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint }}>Nada pendente por aqui.</div>}
-          {proximas.map((d) => (
-            <div key={d.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-              <div>
-                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{d.client}</div>
+      <div className="rounded-2xl p-6 mb-6" style={PANEL}>
+        <PanelTitle icon={Clock} right={proximas.length > 0 && <span className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>{proximas.length} pendente{proximas.length === 1 ? "" : "s"}</span>}>Próximas entregas</PanelTitle>
+        {proximas.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>🎉 Nada pendente por aqui.</div>}
+        <div className="flex flex-col gap-2">
+          {proximas.map((d) => {
+            const resp = equipe.find((u) => u.id === d.responsavelId);
+            const cor = TONE_HEX[priorityTone[d.priority]] || TONE_HEX.neutral;
+            return (
+              <div key={d.id} className="df-row flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-1 self-stretch rounded-full flex-shrink-0" style={{ background: cor }} />
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>{d.client}{resp ? ` · ${resp.nome}` : ""}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {resp && <MiniAvatar user={resp} size={26} />}
+                  <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
+                  {d.date && <span className="text-xs px-2.5 py-1 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.textDim, fontFamily: "Inter" }}>{d.date}</span>}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
-                <span className="text-xs" style={{ color: C.textFaint, minWidth: 44, textAlign: "right" }}>{d.date}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr" }}>
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Carga da equipe</div>
+        <div className="rounded-2xl p-6" style={PANEL}>
+          <PanelTitle icon={Users}>Carga da equipe</PanelTitle>
           {carga.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint }}>Ninguém cadastrado ainda.</div>}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {carga.map((m) => (
-              <div key={m.id}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs" style={{ color: C.textDim, fontFamily: "Inter" }}>{m.nome}</span>
-                  <span className="text-xs" style={{ color: C.textFaint }}>{m.count} {m.count === 1 ? "demanda" : "demandas"}</span>
-                </div>
-                <div className="h-2 rounded-full" style={{ background: C.border }}>
-                  <div className="h-2 rounded-full" style={{ width: `${(m.count / cargaMax) * 100}%`, background: m.count > 0 ? C.gold : "transparent" }} />
+              <div key={m.id} className="flex items-center gap-3">
+                <MiniAvatar user={m} size={34} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{m.nome}</span>
+                    <span className="text-xs" style={{ color: m.count ? C.goldBright : C.textFaint, fontFamily: "Inter" }}>{m.count} {m.count === 1 ? "demanda" : "demandas"}</span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: C.border }}>
+                    <div className="df-bar h-2 rounded-full" style={{ width: `${(m.count / cargaMax) * 100}%`, background: `linear-gradient(90deg, #8A6A12, ${C.goldBright})` }} />
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Distribuição</div>
+        <div className="rounded-2xl p-6" style={PANEL}>
+          <PanelTitle icon={Activity}>Distribuição das demandas</PanelTitle>
           {distribuicaoTotal === 0 ? (
             <div className="text-sm py-4" style={{ color: C.textFaint }}>Nada por aqui ainda.</div>
           ) : (
-            <div className="flex items-center gap-4">
-              <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+            <div className="flex items-center gap-5">
+              <div className="relative flex-shrink-0" style={{ width: 132, height: 132 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={distribuicao} dataKey="value" nameKey="label" innerRadius={38} outerRadius={56} paddingAngle={2} stroke="none">
+                    <Pie data={distribuicao} dataKey="value" nameKey="label" innerRadius={44} outerRadius={62} paddingAngle={3} stroke="none" cornerRadius={4}>
                       {distribuicao.map((b) => <Cell key={b.label} fill={toneHex[b.color]} />)}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="absolute inset-0 flex items-center justify-center text-lg font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>
-                  {distribuicaoTotal}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-2xl font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{distribuicaoTotal}</div>
+                  <div className="text-[10px]" style={{ color: C.textFaint, fontFamily: "Inter" }}>demandas</div>
                 </div>
               </div>
-              <div className="flex flex-col gap-2 flex-1 min-w-0">
+              <div className="flex flex-col gap-2.5 flex-1 min-w-0">
                 {distribuicao.map((b) => (
-                  <div key={b.label} className="flex items-center gap-2 text-xs" style={{ fontFamily: "Inter" }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: toneHex[b.color] }} />
+                  <div key={b.label} className="flex items-center gap-2.5 text-sm" style={{ fontFamily: "Inter" }}>
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: toneHex[b.color] }} />
                     <span className="truncate flex-1" style={{ color: C.textDim }}>{b.label}</span>
-                    <span style={{ color: C.textFaint }}>{b.value}</span>
+                    <span className="font-semibold" style={{ color: C.text }}>{b.value}</span>
                   </div>
                 ))}
               </div>
@@ -1314,21 +1427,28 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
         </div>
       </div>
 
-      <div className="rounded-xl p-5 mt-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <div className="text-sm mb-4" style={{ color: C.textDim, fontFamily: "Inter" }}>Atividade recente</div>
-        {activity.length === 0 && <div className="text-sm py-2" style={{ color: C.textFaint }}>Nada por aqui ainda.</div>}
-        <div className="flex flex-col gap-1">
-          {activity.slice(0, 10).map((a) => (
-            <div key={a.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-              <div className="text-xs min-w-0" style={{ color: C.textDim, fontFamily: "Inter" }}>
-                <span style={{ color: C.goldBright, fontWeight: 600 }}>{a.userNome}</span> {a.acao} em <span style={{ color: C.text }}>{a.modulo}</span>
-                {a.alvo && <span style={{ color: C.textFaint }}> · {a.alvo}</span>}
+      {mostrarAtividade && (
+        <div className="rounded-2xl p-6 mt-6" style={PANEL}>
+          <PanelTitle icon={ShieldCheck} right={<span className="text-[11px] px-2 py-1 rounded-full" style={{ background: "rgba(201,162,39,0.12)", color: C.goldBright, fontFamily: "Inter" }}>visível só para os donos</span>}>
+            Histórico de alterações
+          </PanelTitle>
+          {activity.length === 0 && <div className="text-sm py-2" style={{ color: C.textFaint }}>Nada por aqui ainda.</div>}
+          <div className="flex flex-col">
+            {activity.slice(0, 12).map((a) => (
+              <div key={a.id} className="df-row flex items-center justify-between gap-3 px-2 py-2.5 rounded-lg" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <MiniAvatar user={equipe.find((u) => u.id === a.userId)} nome={a.userNome} size={28} />
+                  <div className="text-sm min-w-0 truncate" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                    <span style={{ color: C.text, fontWeight: 600 }}>{a.userNome}</span> {a.acao} em <span style={{ color: C.goldBright }}>{a.modulo}</span>
+                    {a.alvo && <span style={{ color: C.textFaint }}> · {a.alvo}</span>}
+                  </div>
+                </div>
+                <span className="text-xs flex-shrink-0" style={{ color: C.textFaint, fontFamily: "Inter" }}>{tempoRelativo(a.ts)}</span>
               </div>
-              <span className="text-xs flex-shrink-0 ml-3" style={{ color: C.textFaint }}>{tempoRelativo(a.ts)}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1410,18 +1530,24 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
             if (items.length === 0) return null;
             return (
               <div key={g}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Pill tone={statusTone[g]}>{statusLabel[g]}</Pill>
-                  <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: TONE_HEX[statusTone[g]], boxShadow: `0 0 10px ${TONE_HEX[statusTone[g]]}88` }} />
+                  <span className="text-[15px] font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{statusLabel[g]}</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${TONE_HEX[statusTone[g]]}22`, color: TONE_HEX[statusTone[g]], fontFamily: "Inter" }}>{items.length}</span>
                 </div>
-                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.22)" }}>
                   {items.map((d, idx) => (
-                    <div key={d.id} className="flex items-center justify-between px-4 py-3"
+                    <div key={d.id} className="df-row flex items-center justify-between gap-3 px-5 py-3.5"
                       style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
-                      <button className="flex items-center gap-3 text-left flex-1" onClick={() => cycle(d.id)} title="Avançar status">
-                        <Circle size={14} color={C.textFaint} />
-                        <div>
-                          <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{d.title}</div>
+                      <button className="group flex items-center gap-3.5 text-left flex-1 min-w-0" onClick={() => cycle(d.id)} title="Clique pra avançar o status">
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                          style={{ border: `2px solid ${TONE_HEX[statusTone[d.status]]}`, background: d.status === "Entregue" ? TONE_HEX.green : "transparent" }}>
+                          {d.status === "Entregue"
+                            ? <Check size={13} color="#141209" strokeWidth={3} />
+                            : <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" color={TONE_HEX[statusTone[d.status]]} />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter", textDecoration: d.status === "Entregue" ? "line-through" : "none", opacity: d.status === "Entregue" ? 0.65 : 1 }}>{d.title}</div>
                           <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>
                             {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
                           </div>
@@ -1429,7 +1555,8 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
                       </button>
                       <div className="flex items-center gap-3">
                         <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
-                        <span className="text-xs" style={{ color: C.textFaint, minWidth: 44, textAlign: "right" }}>{d.date}</span>
+                        {d.responsavelId && <MiniAvatar user={equipe.find((u) => u.id === d.responsavelId)} size={26} />}
+                        {d.date && <span className="text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.textDim, fontFamily: "Inter" }}><Clock size={12} />{d.date}</span>}
                         <IconBtn onClick={() => remove(d.id)} title="Remover"><Trash2 size={14} /></IconBtn>
                       </div>
                     </div>
@@ -1461,9 +1588,12 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
               <div className="text-xs mb-2" style={{ color: C.textFaint }}>
                 {d.client}{d.responsavelId ? ` · ${equipe.find((u) => u.id === d.responsavelId)?.nome || ""}` : ""}
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Pill tone={priorityTone[d.priority]}>{d.priority}</Pill>
-                <span className="text-xs" style={{ color: C.textFaint }}>{d.date}</span>
+                <div className="flex items-center gap-2">
+                  {d.date && <span className="text-xs flex items-center gap-1" style={{ color: C.textFaint, fontFamily: "Inter" }}><Clock size={11} />{d.date}</span>}
+                  {d.responsavelId && <MiniAvatar user={equipe.find((u) => u.id === d.responsavelId)} size={22} />}
+                </div>
               </div>
             </>
           )}
@@ -1621,10 +1751,10 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
         } />
 
       <div className="flex gap-4 flex-wrap mb-6">
-        <StatCard icon={Radar} label="Leads ativos" value={ativos} sub={`${leads.length} no total`} />
-        <StatCard icon={TrendingUp} label="Pipeline aberto" value={brl(pipelineAberto)} />
-        <StatCard icon={CheckCircle2} label="Ganho no período" value={brl(ganhoValor)} subColor={C.green} sub={`${ganhos.length} fechados`} />
-        <StatCard icon={ArrowRight} label="Taxa de conversão" value={`${taxaConversao}%`} sub={`${ganhos.length} ganhos / ${perdidos.length} perdidos`} />
+        <StatCard tone="blue" icon={Radar} label="Leads ativos" value={ativos} sub={`${leads.length} no total`} />
+        <StatCard tone="gold" icon={TrendingUp} label="Pipeline aberto" value={brl(pipelineAberto)} />
+        <StatCard tone="green" icon={CheckCircle2} label="Ganho no período" value={brl(ganhoValor)} subColor={C.green} sub={`${ganhos.length} fechados`} />
+        <StatCard tone="violet" icon={ArrowRight} label="Taxa de conversão" value={`${taxaConversao}%`} sub={`${ganhos.length} ganhos / ${perdidos.length} perdidos`} />
       </div>
 
       {view === "quadro" && (
@@ -1683,9 +1813,9 @@ function LeadsModule({ leads, setLeads, clientes, setClientes, logActivity = () 
                 <Pill tone={estagioTone[est]}>{estagioLabel[est]}</Pill>
                 <span className="text-xs" style={{ color: C.textFaint }}>{items.length}</span>
               </div>
-              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.22)" }}>
                 {items.map((l, idx) => (
-                  <div key={l.id} className="flex items-center justify-between px-4 py-3"
+                  <div key={l.id} className="df-row flex items-center justify-between px-4 py-3"
                     style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
                     <button className="flex items-center gap-3 text-left flex-1" onClick={() => setSelectedId(l.id)}>
                       <div>
@@ -1871,30 +2001,36 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
       <ModuleHeader title="Financeiro" sub="Fechamento do mês · agosto de 2026" />
 
       <div className="flex gap-4 flex-wrap mb-6">
-        <StatCard icon={TrendingUp} label="Lucro do mês" value={brl(saldo)} sub={`${pct}% da meta de ${brl(financeiro.metaMes)}`} subColor={C.gold} />
-        <StatCard icon={TrendingUp} label="Recebido" value={brl(recebido)} />
-        <StatCard icon={TrendingDown} label="Despesas" value={brl(gasto)} subColor={C.red} />
-        <StatCard icon={Wallet} label="Saldo em caixa" value={brl(saldo)} />
-        <StatCard icon={Receipt} label="Notas fiscais" value={`${notasEmitidas}/${financeiro.entradas.length}`} sub={`${notasPendentes} pendente${notasPendentes === 1 ? "" : "s"}`} subColor={notasPendentes ? C.red : C.green} />
+        <StatCard tone="gold" icon={TrendingUp} label="Lucro do mês" value={brl(saldo)} sub={`${pct}% da meta de ${brl(financeiro.metaMes)}`} subColor={C.gold} />
+        <StatCard tone="green" icon={TrendingUp} label="Recebido" value={brl(recebido)} />
+        <StatCard tone="red" icon={TrendingDown} label="Despesas" value={brl(gasto)} subColor={C.red} />
+        <StatCard tone="blue" icon={Wallet} label="Saldo em caixa" value={brl(saldo)} />
+        <StatCard tone="violet" icon={Receipt} label="Notas fiscais" value={`${notasEmitidas}/${financeiro.entradas.length}`} sub={`${notasPendentes} pendente${notasPendentes === 1 ? "" : "s"}`} subColor={notasPendentes ? C.red : C.green} />
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>Entradas ({financeiro.entradas.length})</div>
-            <button onClick={() => setOpen("entrada")} style={{ color: C.gold }}><Plus size={16} /></button>
-          </div>
+        <div className="rounded-2xl p-5" style={PANEL}>
+          <PanelTitle icon={TrendingUp} right={
+            <button onClick={() => setOpen("entrada")} className="df-btn-ghost flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ color: C.green, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              <Plus size={14} />Nova entrada
+            </button>
+          }>Entradas <span style={{ color: C.textFaint, fontWeight: 400 }}>· {brl(recebido)}</span></PanelTitle>
+          {financeiro.entradas.length === 0 && <div className="text-sm py-6 text-center rounded-xl" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>Nenhuma entrada neste mês</div>}
           <div className="flex flex-col gap-1">
             {financeiro.entradas.map((e) => {
               const cliente = clientes.find((c) => c.name === e.client);
               return (
-                <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div key={e.id} className="df-row flex items-center justify-between gap-3 px-2 py-3 rounded-xl" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(111,191,139,0.12)", color: C.green }}><TrendingUp size={16} /></span>
                   <div className="min-w-0">
-                    <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
+                    <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
                     <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.client} · {e.date}</div>
                   </div>
+                  </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-sm font-medium mr-1" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
+                    <span className="text-[15px] font-semibold mr-1" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
                     <IconBtn onClick={() => toggleNota(e.id)} title={e.notaEmitida ? "Nota fiscal emitida" : "Marcar nota fiscal como emitida"}>
                       <Receipt size={13} color={e.notaEmitida ? C.green : C.textFaint} style={{ opacity: e.notaEmitida ? 1 : 0.5 }} />
                     </IconBtn>
@@ -1911,20 +2047,26 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
           </div>
         </div>
 
-        <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>Saídas ({financeiro.saidas.length})</div>
-            <button onClick={() => setOpen("saida")} style={{ color: C.gold }}><Plus size={16} /></button>
-          </div>
+        <div className="rounded-2xl p-5" style={PANEL}>
+          <PanelTitle icon={TrendingDown} right={
+            <button onClick={() => setOpen("saida")} className="df-btn-ghost flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ color: C.red, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              <Plus size={14} />Nova saída
+            </button>
+          }>Saídas <span style={{ color: C.textFaint, fontWeight: 400 }}>· {brl(gasto)}</span></PanelTitle>
+          {financeiro.saidas.length === 0 && <div className="text-sm py-6 text-center rounded-xl" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>Nenhuma saída neste mês</div>}
           <div className="flex flex-col gap-1">
             {financeiro.saidas.map((e) => (
-              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
-                <div>
-                  <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
-                  <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.category} · {e.date}</div>
+              <div key={e.id} className="df-row flex items-center justify-between gap-3 px-2 py-3 rounded-xl" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(210,104,91,0.12)", color: C.red }}><TrendingDown size={16} /></span>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.category} · {e.date}</div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium" style={{ color: C.red, fontFamily: "Inter" }}>-{brl(e.value)}</span>
+                  <span className="text-[15px] font-semibold" style={{ color: C.red, fontFamily: "Inter" }}>-{brl(e.value)}</span>
                   <IconBtn onClick={() => removeEntry("saidas", e.id)}><Trash2 size={13} /></IconBtn>
                 </div>
               </div>
@@ -2440,10 +2582,10 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
       )}
 
       {view === "lista" && (
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.22)" }}>
         {contratos.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum contrato ainda.</div>}
         {contratos.map((c, idx) => (
-          <div key={c.id} className="flex items-center justify-between px-5 py-4 flex-wrap gap-3"
+          <div key={c.id} className="df-row flex items-center justify-between px-5 py-4 flex-wrap gap-3"
             style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
             <div className="flex items-center gap-3">
               <FileText size={16} color={C.textFaint} />
@@ -3420,7 +3562,7 @@ function FeedModule({ equipe, currentUser }) {
           {error && <div className="text-sm mb-4 rounded-xl px-4 py-3" style={{ color: C.amber, background: "rgba(217,164,65,0.08)", border: "1px solid rgba(217,164,65,0.3)", fontFamily: "Inter" }}>{error}</div>}
 
           {loading && [0, 1].map((i) => (
-            <div key={i} className="rounded-2xl p-5 mb-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div key={i} className="rounded-2xl p-5 mb-5" style={PANEL}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-full df-glow" style={{ background: "#26241F" }} />
                 <div className="flex-1"><div className="h-3 w-40 rounded df-glow mb-2" style={{ background: "#26241F" }} /><div className="h-2.5 w-24 rounded df-glow" style={{ background: "#26241F" }} /></div>
@@ -3445,7 +3587,7 @@ function FeedModule({ equipe, currentUser }) {
         <aside className="hidden xl:block">
           <div className="sticky" style={{ top: 72 }}>
             {aniversarios.length > 0 && (
-              <div className="rounded-2xl p-4 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <div className="rounded-2xl p-4 mb-4" style={PANEL}>
                 <div className="text-sm font-semibold mb-3" style={{ color: C.textDim, fontFamily: "Inter" }}>Aniversários</div>
                 {aniversarios.map(({ u, dias, prox }) => (
                   <div key={u.id} className="flex items-center gap-3 py-1.5">
@@ -3460,7 +3602,7 @@ function FeedModule({ equipe, currentUser }) {
                 ))}
               </div>
             )}
-            <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="rounded-2xl p-4" style={PANEL}>
               <div className="text-sm font-semibold mb-2" style={{ color: C.textDim, fontFamily: "Inter" }}>Equipe</div>
               {equipe.map((u) => (
                 <div key={u.id} className="flex items-center gap-3 px-2 py-2 rounded-xl df-btn-ghost" style={{ border: "1px solid transparent" }}>
@@ -3549,7 +3691,7 @@ const miniLabel = { color: C.textFaint, fontFamily: "Inter", fontSize: 10, lette
 
 function CalcBloco({ titulo, subtitulo, total, totalHora, children, onAdd, addLabel = "Adicionar" }) {
   return (
-    <div className="rounded-xl p-4 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+    <div className="rounded-2xl p-4 mb-4" style={PANEL}>
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div>
           <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{titulo}</div>
@@ -4183,9 +4325,9 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao: prec
         } />
 
       <div className="flex gap-4 flex-wrap mb-6">
-        <StatCard icon={Receipt} label="Orçamentos" value={orcamentos.length} />
-        <StatCard icon={Wallet} label="Valor em aberto" value={brl(valorEmAberto)} />
-        <StatCard icon={CheckCircle2} label="Taxa de aprovação" value={`${taxaAprovacao}%`} sub={`${aprovados} aprovados / ${recusados} recusados`} />
+        <StatCard tone="blue" icon={Receipt} label="Orçamentos" value={orcamentos.length} />
+        <StatCard tone="gold" icon={Wallet} label="Valor em aberto" value={brl(valorEmAberto)} />
+        <StatCard tone="green" icon={CheckCircle2} label="Taxa de aprovação" value={`${taxaAprovacao}%`} sub={`${aprovados} aprovados / ${recusados} recusados`} />
       </div>
 
       {subView === "quadro" && (
@@ -4232,10 +4374,10 @@ function OrcamentosModule({ orcamentos, setOrcamentos, leads, precificacao: prec
         ))}
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.22)" }}>
         {shown.length === 0 && <div className="p-6 text-sm" style={{ color: C.textFaint, background: C.surface }}>Nenhum orçamento aqui.</div>}
         {shown.map((o, idx) => (
-          <div key={o.id} className="flex items-center justify-between px-5 py-4"
+          <div key={o.id} className="df-row flex items-center justify-between px-5 py-4"
             style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
             <button className="flex items-center gap-3 text-left flex-1" onClick={() => startEdit(o)}>
               <Receipt size={16} color={C.textFaint} />
@@ -4373,11 +4515,11 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
         right={<PrimaryBtn onClick={startNew}><Plus size={16} />Cliente</PrimaryBtn>} />
 
       <div className="flex gap-3 flex-wrap mb-6">
-        <StatCard icon={Users} label="Clientes cadastrados" value={clientes.length} />
-        <StatCard icon={UserCheck} label="Ativos na carteira" value={`${ativosCount}`} sub={`${ativosPct}%`} subColor={C.green} />
-        <StatCard icon={Activity} label="Com trabalho em aberto" value={trabalhoAbertoCount} />
-        <StatCard icon={Repeat} label="Contratos recorrentes" value={recorrentesCount} />
-        <StatCard icon={FileX} label="Sem contrato" value={semContratoCount} subColor={semContratoCount ? C.red : undefined} />
+        <StatCard tone="blue" icon={Users} label="Clientes cadastrados" value={clientes.length} />
+        <StatCard tone="green" icon={UserCheck} label="Ativos na carteira" value={`${ativosCount}`} sub={`${ativosPct}%`} subColor={C.green} />
+        <StatCard tone="amber" icon={Activity} label="Com trabalho em aberto" value={trabalhoAbertoCount} />
+        <StatCard tone="violet" icon={Repeat} label="Contratos recorrentes" value={recorrentesCount} />
+        <StatCard tone="red" icon={FileX} label="Sem contrato" value={semContratoCount} subColor={semContratoCount ? C.red : undefined} />
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
@@ -4439,7 +4581,7 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
               const team = teamOf(c);
               const servicos = c.servicos || [];
               return (
-                <div key={c.id} className="grid items-center px-5 py-3.5"
+                <div key={c.id} className="df-row grid items-center px-5 py-3.5"
                   style={{ gridTemplateColumns: gridCols, gap: 12, background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar name={c.name} />
@@ -4509,7 +4651,7 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
             const team = teamOf(c);
             const servicos = c.servicos || [];
             return (
-              <div key={c.id} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <div key={c.id} className="rounded-2xl p-4" style={PANEL}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar name={c.name} />
@@ -4735,9 +4877,9 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
         right={canManage && <PrimaryBtn onClick={startNew}><UserPlus size={17} />Cadastrar funcionário</PrimaryBtn>} />
 
       <div className="flex gap-4 flex-wrap mb-6">
-        <StatCard icon={Users} label="Pessoas na equipe" value={equipe.length} />
-        <StatCard icon={ShieldCheck} label="Acesso total" value={equipe.filter((m) => CARGOS_GESTAO.includes(m.papel)).length} sub="Dono, Sócio e Admin veem tudo" />
-        <StatCard icon={KeyRound} label="Acesso limitado" value={equipe.filter((m) => !CARGOS_GESTAO.includes(m.papel)).length} sub="Só os módulos liberados" />
+        <StatCard tone="blue" icon={Users} label="Pessoas na equipe" value={equipe.length} />
+        <StatCard tone="gold" icon={ShieldCheck} label="Acesso total" value={equipe.filter((m) => CARGOS_GESTAO.includes(m.papel)).length} sub="Dono, Sócio e Admin veem tudo" />
+        <StatCard tone="violet" icon={KeyRound} label="Acesso limitado" value={equipe.filter((m) => !CARGOS_GESTAO.includes(m.papel)).length} sub="Só os módulos liberados" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -4965,7 +5107,7 @@ export default function DieselFilmsOS() {
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSharedState("df_orcamentos", seedOrcamentos);
   const [precificacao, setPrecificacao, precificacaoLoaded] = useSharedState("df_precificacao", seedPrecificacao);
   const [empresa, setEmpresa, empresaLoaded] = useSharedState("df_empresa", seedEmpresa);
-  const [activity, setActivity, activityLoaded] = useSharedState("df_activity", () => []);
+  const [activity, setActivity] = useState([]);
 
   const [sessionUserId, setSessionUserId] = useState(undefined); // undefined = ainda carregando
   useEffect(() => {
@@ -4982,7 +5124,18 @@ export default function DieselFilmsOS() {
     })();
   }, []);
 
-  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && empresaLoaded && activityLoaded && sessionUserId !== undefined;
+  const allLoaded = clientesLoaded && leadsLoaded && demandasLoaded && financeiroLoaded && contratosLoaded && equipeLoaded && orcamentosLoaded && precificacaoLoaded && empresaLoaded && sessionUserId !== undefined;
+
+  // histórico (auditoria): só os donos carregam -- o servidor também barra os outros
+  const papelAtual = (equipe || []).find((u) => u.id === sessionUserId)?.papel;
+  const ehDono = CARGOS_DONO.includes(papelAtual);
+  useEffect(() => {
+    if (!ehDono) { setActivity([]); return; }
+    const carregar = () => listarAtividade().then(setActivity).catch(() => {});
+    carregar();
+    const t = setInterval(carregar, 30000);
+    return () => clearInterval(t);
+  }, [ehDono]);
 
   const [showRetry, setShowRetry] = useState(false);
   useEffect(() => {
@@ -5015,10 +5168,9 @@ export default function DieselFilmsOS() {
 
   const logActivity = (modulo, acao, alvo) => {
     if (!currentUser) return;
-    setActivity([
-      { id: uid(), ts: new Date().toISOString(), userId: currentUser.id, userNome: currentUser.nome, modulo, acao, alvo },
-      ...activity,
-    ].slice(0, 300));
+    registrarAtividade(modulo, acao, alvo).then((item) => {
+      if (item && CARGOS_DONO.includes(currentUser.papel)) setActivity((lista) => [item, ...lista]);
+    });
   };
 
   const login = async (user, token) => {
@@ -5045,7 +5197,7 @@ export default function DieselFilmsOS() {
   const modules = (
     <>
       {activeSafe === "feed" && canSee("feed") && <FeedModule equipe={equipe} currentUser={currentUser} />}
-      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} activity={activity} isMobile={isMobile} />}
+      {activeSafe === "dashboard" && canSee("dashboard") && <DashboardModule clientes={clientes} demandas={demandas} financeiro={financeiro} equipe={equipe} activity={activity} isMobile={isMobile} currentUser={currentUser} mostrarAtividade={CARGOS_DONO.includes(currentUser.papel)} />}
       {activeSafe === "leads" && canSee("leads") && <LeadsModule leads={leads} setLeads={setLeads} clientes={clientes} setClientes={setClientes} logActivity={logActivity} />}
       {activeSafe === "demandas" && canSee("demandas") && <DemandasModule demandas={demandas} setDemandas={setDemandas} clientes={clientes} equipe={equipe} logActivity={logActivity} />}
       {activeSafe === "financeiro" && canSee("financeiro") && <FinanceiroModule financeiro={financeiro} setFinanceiro={setFinanceiro} clientes={clientes} isMobile={isMobile} logActivity={logActivity} />}
@@ -5092,7 +5244,7 @@ export default function DieselFilmsOS() {
         <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
           <NotificationBell currentUser={currentUser} />
         </div>
-        <div key={activeSafe} className="df-fade-up mx-auto px-10 pt-1 pb-12" style={{ maxWidth: 1360 }}>
+        <div key={activeSafe} className="df-fade-up mx-auto px-10 pt-1 pb-12" style={{ maxWidth: 1560 }}>
           {modules}
         </div>
       </div>
