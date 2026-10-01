@@ -3018,6 +3018,10 @@ function reacoesDoPost(post) {
   return out;
 }
 
+// Dieselzinho: o bot que posta as novidades do sistema (api/bot-post.js).
+// Não faz parte da equipe, então o Feed monta o "perfil" dele aqui.
+const BOT_FEED = { id: "bot-dieselzinho", nome: "Dieselzinho", papel: "Bot da DieselFilms", fotoUrl: "/dieselzinho.svg" };
+
 // fotos/vídeos do post, juntando o formato novo (midias) com o antigo (fotoUrl)
 function midiasDoPost(post) {
   if (Array.isArray(post.midias) && post.midias.length) return post.midias;
@@ -3280,7 +3284,7 @@ function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDele
   const quemReagiu = REACOES.flatMap((r) => reacoes[r.id].map((id) => `${r.emoji} ${equipe.find((u) => u.id === id)?.nome || "Alguém"}`));
   const comentarios = post.comentarios || [];
   const podeExcluir = post.autorId === currentUser.id || CARGOS_GESTAO.includes(currentUser.papel);
-  const autor = equipe.find((u) => u.id === post.autorId);
+  const autor = post.autorId === BOT_FEED.id ? BOT_FEED : equipe.find((u) => u.id === post.autorId);
   const midias = midiasDoPost(post);
   const texto = post.tipo === "foto" ? post.descricao : post.texto;
   const textoGrande = post.tipo !== "frase" && midias.length === 0 && texto && texto.length < 110 && !texto.includes("\n");
