@@ -2806,12 +2806,36 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
               </div>
 
               {previewVisible && (
-                <div className={isMobile ? "px-6 py-5" : "flex-1 thin-scroll overflow-y-auto px-6 py-5"} style={{ borderLeft: isMobile ? "none" : `1px solid ${C.borderSoft}`, borderTop: isMobile ? `1px solid ${C.borderSoft}` : "none" }}>
-                  <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>Pré-visualização · clique no texto para editar</div>
-                  <div ref={docRef} contentEditable suppressContentEditableWarning
-                    onInput={() => setDocTouched(true)}
-                    className="rounded-lg p-6 text-sm outline-none"
-                    style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.text, fontFamily: "Inter", lineHeight: 1.6, minHeight: 400 }} />
+                <div className={isMobile ? "px-4 py-5" : "flex-1 thin-scroll overflow-y-auto px-8 py-6"}
+                  style={{ background: "radial-gradient(120% 80% at 50% 0%, #1F1C15, #0E0D0B 70%)", borderLeft: isMobile ? "none" : `1px solid ${C.borderSoft}`, borderTop: isMobile ? `1px solid ${C.borderSoft}` : "none" }}>
+                  <div className="flex items-center justify-between mb-4 mx-auto" style={{ maxWidth: 820 }}>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                      <FileText size={14} color={C.goldBright} />Pré-visualização
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+                      <Pencil size={12} />clique no texto pra editar
+                    </div>
+                  </div>
+
+                  {/* folha: papel branco, faixa dourada e logo em marca d'água */}
+                  <div className="relative mx-auto rounded-md overflow-hidden"
+                    style={{ maxWidth: 820, background: "#FFFFFF", boxShadow: "0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(201,162,39,0.25)" }}>
+                    <div style={{ height: 6, background: "linear-gradient(90deg, #8A6A12, #E8C158, #C9A227, #8A6A12)" }} />
+                    <div className="flex items-center justify-between px-10 pt-7 pb-5" style={{ borderBottom: "1px solid #EFE7D2" }}>
+                      <img src={LOGO_IMG} alt="Diesel Films" style={{ height: 46, width: "auto" }} />
+                      <div className="text-right" style={{ fontFamily: "Inter" }}>
+                        <div className="text-[11px] font-semibold tracking-[0.2em] uppercase" style={{ color: "#8A6A12" }}>{empresa.razaoSocial || "DieselFilms"}</div>
+                        {empresa.cnpj && <div className="text-[11px]" style={{ color: "#8C8577" }}>CNPJ {empresa.cnpj}</div>}
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 pointer-events-none"
+                      style={{ backgroundImage: Array(10).fill(`url(${LOGO_IMG})`).join(", "), backgroundRepeat: "no-repeat", backgroundSize: "min(380px, 55%) auto", backgroundPosition: Array.from({ length: 10 }, (_, i) => `center ${280 + i * 1100}px`).join(", "), opacity: 0.1 }} />
+                    <div ref={docRef} contentEditable suppressContentEditableWarning
+                      onInput={() => setDocTouched(true)}
+                      className="relative outline-none px-10 py-8"
+                      style={{ color: "#1F1D19", fontFamily: "Inter", fontSize: 14, lineHeight: 1.7, minHeight: 600, caretColor: "#8A6A12" }} />
+                    <div style={{ height: 4, background: "linear-gradient(90deg, #8A6A12, #E8C158, #C9A227, #8A6A12)" }} />
+                  </div>
                 </div>
               )}
             </div>
