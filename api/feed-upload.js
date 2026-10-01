@@ -9,9 +9,13 @@ export default async function handler(req, res) {
       body: req.body,
       request: req,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic"],
+        allowedContentTypes: [
+          "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic",
+          "video/mp4", "video/quicktime", "video/webm",
+        ],
         addRandomSuffix: true,
-        maximumSizeInBytes: 8 * 1024 * 1024,
+        // vídeo do celular pesa -- 500 MB cobre alguns minutos em 4K
+        maximumSizeInBytes: 500 * 1024 * 1024,
       }),
       onUploadCompleted: async () => {},
     });

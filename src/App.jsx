@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -18,7 +18,7 @@ import {
 } from "./lib/precificacao.js";
 import { lerXlsx } from "./lib/lerXlsx.js";
 import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js";
-import { uploadImagem } from "./lib/mediaApi.js";
+import { uploadImagem, uploadMidia } from "./lib/mediaApi.js";
 import { hashPassword } from "./lib/authClient.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
 import {
@@ -363,8 +363,8 @@ function useSharedState(key, seedFn) {
 --------------------------------------------------------- */
 function StatCard({ icon: Icon, label, value, sub, subColor }) {
   return (
-    <div className="rounded-xl p-5 flex-1 min-w-[180px]"
-      style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+    <div className="df-card rounded-2xl p-5 flex-1 min-w-[190px]"
+      style={{ background: `linear-gradient(180deg, #1A1916, ${C.surface})`, border: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-2 mb-3" style={{ color: C.textDim }}>
         <Icon size={15} />
         <span className="text-xs tracking-wide uppercase" style={{ fontFamily: "Inter" }}>{label}</span>
@@ -465,8 +465,8 @@ const orcamentoTone = { Rascunho: "neutral", Enviado: "blue", Visualizado: "gold
 
 function IconBtn({ onClick, children, title }) {
   return (
-    <button onClick={onClick} title={title}
-      className="p-1.5 rounded-md transition-colors"
+    <button onClick={onClick} title={title} aria-label={title}
+      className="p-2 rounded-lg transition-colors"
       style={{ color: C.textFaint }}
       onMouseEnter={(e) => { e.currentTarget.style.color = C.red; e.currentTarget.style.background = C.surfaceHover; }}
       onMouseLeave={(e) => { e.currentTarget.style.color = C.textFaint; e.currentTarget.style.background = "transparent"; }}>
@@ -478,23 +478,56 @@ function IconBtn({ onClick, children, title }) {
 function PrimaryBtn({ onClick, children, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-transform active:scale-[0.98]"
-      style={{ background: C.gold, color: "#141209", fontFamily: "Inter", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>
+      className="df-btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold"
+      style={{ color: "#141209", fontFamily: "Inter", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>
       {children}
     </button>
   );
 }
 
-function Modal({ title, onClose, children, wide }) {
+function GhostBtn({ onClick, children, type = "button" }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div className={`w-full ${wide ? "max-w-3xl" : "max-w-md"} rounded-xl p-6 thin-scroll`}
-        style={{ background: C.surface, border: `1px solid ${C.border}`, maxHeight: "88vh", overflowY: "auto" }}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 style={{ fontFamily: "Fraunces", color: C.text }} className="text-lg font-medium">{title}</h3>
-          <button onClick={onClose} style={{ color: C.textFaint }}><X size={18} /></button>
+    <button type={type} onClick={onClick}
+      className="df-btn-ghost flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium"
+      style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+      {children}
+    </button>
+  );
+}
+
+function Modal({ title, sub, icon: Icon, onClose, children, wide, medium }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 df-fade-in"
+      style={{ background: "rgba(5,5,4,0.72)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
+      <div className={`w-full ${wide ? "max-w-3xl" : medium ? "max-w-2xl" : "max-w-lg"} rounded-2xl thin-scroll df-scale-in`}
+        style={{
+          background: `linear-gradient(180deg, #1B1A17, ${C.surface} 160px)`, border: `1px solid ${C.border}`,
+          boxShadow: "0 30px 80px rgba(0,0,0,0.6)", maxHeight: "90vh", overflowY: "auto",
+        }}>
+        <div className="flex items-start justify-between gap-4 px-7 pt-6 pb-5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+          <div className="flex items-center gap-3.5 min-w-0">
+            {Icon && (
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(201,162,39,0.12)", color: C.goldBright, border: "1px solid rgba(201,162,39,0.25)" }}>
+                <Icon size={19} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <h3 style={{ fontFamily: "Fraunces", color: C.text }} className="text-xl font-semibold leading-tight">{title}</h3>
+              {sub && <p className="text-sm mt-1" style={{ color: C.textFaint, fontFamily: "Inter" }}>{sub}</p>}
+            </div>
+          </div>
+          <button onClick={onClose} title="Fechar (Esc)" aria-label="Fechar"
+            className="df-btn-ghost p-2 rounded-lg flex-shrink-0" style={{ color: C.textFaint, border: "1px solid transparent" }}>
+            <X size={18} />
+          </button>
         </div>
-        {children}
+        <div className="px-7 py-6">{children}</div>
       </div>
     </div>
   );
@@ -595,8 +628,8 @@ function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, o
 
 function Field({ label, children }) {
   return (
-    <label className="block mb-3">
-      <span className="block text-xs mb-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>{label}</span>
+    <label className="block mb-4">
+      <span className="block text-[13px] font-medium mb-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>{label}</span>
       {children}
     </label>
   );
@@ -604,8 +637,76 @@ function Field({ label, children }) {
 
 const inputStyle = {
   width: "100%", background: C.bgSoft, border: `1px solid ${C.border}`,
-  borderRadius: "8px", padding: "8px 10px", color: C.text, fontFamily: "Inter", fontSize: "14px", outline: "none",
+  borderRadius: "10px", padding: "10px 12px", color: C.text, fontFamily: "Inter", fontSize: "15px", outline: "none",
 };
+
+// 0 (vazia/curta) a 4 (forte)
+function forcaDaSenha(s) {
+  if (!s || s.length < 6) return s ? 1 : 0;
+  let pts = 1;
+  if (s.length >= 10) pts++;
+  if (/[a-z]/.test(s) && /[A-Z]/.test(s)) pts++;
+  if (/\d/.test(s) && /[^A-Za-z0-9]/.test(s)) pts++;
+  return Math.min(4, pts);
+}
+const FORCA_INFO = [
+  null,
+  { label: "Fraca", color: C.red },
+  { label: "Média", color: C.amber },
+  { label: "Boa", color: C.blue },
+  { label: "Forte", color: C.green },
+];
+
+function gerarSenhaForte() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*?";
+  const bytes = crypto.getRandomValues(new Uint32Array(12));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+// Campo de senha com o "olho" pra mostrar/esconder, medidor de força e,
+// opcionalmente, botão de gerar uma senha forte.
+function PasswordInput({ value, onChange, placeholder, autoComplete, style, comMedidor, comGerador }) {
+  const [visivel, setVisivel] = useState(false);
+  const forca = forcaDaSenha(value);
+  const info = FORCA_INFO[forca];
+  return (
+    <div>
+      <div className="relative">
+        <input type={visivel ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder} autoComplete={autoComplete}
+          style={{ ...inputStyle, paddingRight: 46, ...style }} />
+        <button type="button" onClick={() => setVisivel((v) => !v)}
+          title={visivel ? "Esconder senha" : "Mostrar senha"} aria-label={visivel ? "Esconder senha" : "Mostrar senha"}
+          className="df-btn-ghost absolute top-1/2 -translate-y-1/2 p-2 rounded-lg"
+          style={{ right: 5, color: visivel ? C.goldBright : C.textDim, border: "1px solid transparent" }}>
+          {visivel ? <EyeOff size={17} /> : <Eye size={17} />}
+        </button>
+      </div>
+      {(comMedidor || comGerador) && (
+        <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
+          {comMedidor && (
+            <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+              <div className="flex gap-1 flex-1">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-1.5 flex-1 rounded-full transition-colors"
+                    style={{ background: forca >= i ? info.color : C.border }} />
+                ))}
+              </div>
+              <span className="text-xs w-12" style={{ color: info ? info.color : C.textFaint, fontFamily: "Inter" }}>{info ? info.label : ""}</span>
+            </div>
+          )}
+          {comGerador && (
+            <button type="button" onClick={() => { onChange(gerarSenhaForte()); setVisivel(true); }}
+              className="df-btn-ghost flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ color: C.goldBright, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+              <Wand2 size={13} />Gerar senha forte
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------
    LOGIN
@@ -617,6 +718,13 @@ function LoginScreen({ onLogin }) {
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [shake, setShake] = useState(false);
+  const falhar = (msg) => {
+    setError(msg);
+    setSubmitting(false);
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
 
   useEffect(() => {
     (async () => {
@@ -647,8 +755,7 @@ function LoginScreen({ onLogin }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "E-mail ou senha incorretos.");
-        setSubmitting(false);
+        falhar(data.error || "E-mail ou senha incorretos.");
         return;
       }
       if (lembrar) {
@@ -658,43 +765,102 @@ function LoginScreen({ onLogin }) {
       }
       onLogin(data.user, data.token);
     } catch {
-      setError("Não deu pra entrar agora. Confira sua conexão e tente de novo.");
-      setSubmitting(false);
+      falhar("Não deu pra entrar agora. Confira sua conexão e tente de novo.");
     }
   };
 
+  const loginInput = { ...inputStyle, height: 52, paddingLeft: 46, fontSize: 15, borderRadius: 12, background: "rgba(10,10,9,0.7)" };
+
   return (
-    <div className="w-full min-h-screen flex items-center justify-center px-5"
-      style={{ backgroundColor: C.bg, backgroundImage: `linear-gradient(180deg, rgba(10,10,9,0.55), rgba(10,10,9,0.92)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+    <div className="w-full min-h-screen flex" style={{ backgroundColor: C.bg }}>
       <style>{FONTS}</style>
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 92, height: "auto" }} />
-          <div className="text-[10px] mt-2 tracking-[0.2em] uppercase" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sistema de Gestão</div>
+
+      {/* lado esquerdo: marca (só em tela grande) */}
+      <div className="hidden lg:flex relative flex-col justify-between overflow-hidden"
+        style={{ flex: "1 1 55%", background: "radial-gradient(120% 90% at 20% 15%, #3A2C0C 0%, #1A150A 38%, #0B0A08 75%)" }}>
+        <div className="absolute df-glow" style={{ width: 680, height: 680, left: "10%", top: "8%", borderRadius: "50%", background: "radial-gradient(circle, rgba(201,162,39,0.22), transparent 62%)" }} />
+        <div className="absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 72px)" }} />
+        <div className="absolute inset-y-0 right-0 w-40" style={{ background: "linear-gradient(90deg, transparent, #0A0A09)" }} />
+        <Sprockets />
+
+        <div className="relative px-20 pt-16 df-fade-up">
+          <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 168, height: "auto", filter: "drop-shadow(0 10px 40px rgba(201,162,39,0.35))" }} />
         </div>
 
-        <form onSubmit={submit} className="rounded-xl p-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <Field label="E-mail">
-            <input type="email" style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="seuemail@dieselfilms.com" autoComplete="username" />
-          </Field>
-          <Field label="Senha">
-            <input type="password" style={inputStyle} value={senha} onChange={(e) => setSenha(e.target.value)}
-              placeholder="••••••••" autoComplete="current-password" />
-          </Field>
-          <label className="flex items-center gap-2 mb-4 -mt-1 text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>
-            <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
-            Lembrar meu login neste aparelho
-          </label>
-          {error && <div className="text-xs mb-3" style={{ color: C.red, fontFamily: "Inter" }}>{error}</div>}
-          <button type="submit" disabled={submitting} className="w-full py-2.5 rounded-lg text-sm font-semibold mt-1"
-            style={{ background: C.gold, color: "#141209", fontFamily: "Inter", opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}>
-            {submitting ? "Entrando..." : "Entrar"}
-          </button>
-        </form>
-        <p className="text-xs text-center mt-5" style={{ color: C.textFaint, fontFamily: "Inter" }}>
-          Acesso liberado apenas para a equipe DieselFilms.
-        </p>
+        <div className="relative px-20 pb-16 df-fade-up" style={{ animationDelay: "0.1s" }}>
+          <div className="text-xs tracking-[0.3em] uppercase mb-5" style={{ color: C.goldBright, fontFamily: "Inter" }}>Sistema de gestão</div>
+          <h1 className="text-6xl font-semibold leading-[1.05] mb-6" style={{ fontFamily: "Fraunces", color: C.text, maxWidth: 620, letterSpacing: "-0.02em" }}>
+            Do primeiro contato <span style={{ color: C.goldBright, fontStyle: "italic" }}>à entrega final.</span>
+          </h1>
+          <p className="text-lg mb-9" style={{ color: C.textDim, fontFamily: "Inter", maxWidth: 500, lineHeight: 1.6 }}>
+            Leads, demandas, orçamentos, contratos e financeiro da equipe DieselFilms num só lugar.
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            {[{ icon: Radar, label: "Leads" }, { icon: ListChecks, label: "Demandas" }, { icon: Receipt, label: "Orçamentos" }, { icon: FileText, label: "Contratos" }, { icon: Wallet, label: "Financeiro" }].map(({ icon: Icon, label }) => (
+              <span key={label} className="flex items-center gap-2 px-3.5 py-2 rounded-full text-sm"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,162,39,0.22)", color: C.text, fontFamily: "Inter", backdropFilter: "blur(4px)" }}>
+                <Icon size={15} color={C.goldBright} />{label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* lado direito: formulário */}
+      <div className="flex-1 flex items-center justify-center px-5 py-10 relative"
+        style={{ flex: "1 1 45%", background: `linear-gradient(180deg, rgba(10,10,9,0.6), rgba(10,10,9,0.95)), url(${BG_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+        <div className="absolute inset-0 hidden lg:block" style={{ background: C.bg }} />
+        <div className="relative w-full df-fade-up" style={{ maxWidth: 440, animationDelay: "0.05s" }}>
+          <div className="flex flex-col items-center mb-8 lg:hidden">
+            <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 120, height: "auto" }} />
+            <div className="text-[11px] mt-3 tracking-[0.25em] uppercase" style={{ color: C.goldBright, fontFamily: "Inter" }}>Sistema de gestão</div>
+          </div>
+
+          <form onSubmit={submit} className={`rounded-2xl p-8 sm:p-10 ${shake ? "df-shake" : ""}`}
+            style={{ background: "linear-gradient(180deg, #1B1A17, #141310)", border: `1px solid ${C.border}`, boxShadow: "0 30px 80px rgba(0,0,0,0.55)" }}>
+            <h2 className="text-3xl font-semibold mb-1.5" style={{ fontFamily: "Fraunces", color: C.text }}>Bem-vindo de volta</h2>
+            <p className="text-sm mb-8" style={{ color: C.textDim, fontFamily: "Inter" }}>Entre com seu e-mail e senha da equipe.</p>
+
+            <label className="block mb-5">
+              <span className="block text-[13px] font-medium mb-2" style={{ color: C.textDim, fontFamily: "Inter" }}>E-mail</span>
+              <div className="relative">
+                <Mail size={18} className="absolute top-1/2 -translate-y-1/2 pointer-events-none" style={{ left: 16, color: C.textFaint }} />
+                <input type="email" style={loginInput} value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seuemail@dieselfilms.com" autoComplete="username" autoFocus={ready && !email} />
+              </div>
+            </label>
+
+            <label className="block mb-5">
+              <span className="block text-[13px] font-medium mb-2" style={{ color: C.textDim, fontFamily: "Inter" }}>Senha</span>
+              <div className="relative">
+                <Lock size={18} className="absolute top-1/2 -translate-y-1/2 pointer-events-none z-10" style={{ left: 16, color: C.textFaint }} />
+                <PasswordInput value={senha} onChange={setSenha} placeholder="Sua senha" autoComplete="current-password" style={loginInput} />
+              </div>
+            </label>
+
+            <label className="flex items-center gap-2.5 mb-6 text-sm cursor-pointer select-none" style={{ color: C.textDim, fontFamily: "Inter" }}>
+              <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
+              Lembrar meu login neste aparelho
+            </label>
+
+            {error && (
+              <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 mb-5 text-sm df-fade-in"
+                style={{ background: "rgba(210,104,91,0.1)", border: "1px solid rgba(210,104,91,0.35)", color: "#EBA196", fontFamily: "Inter" }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{error}
+              </div>
+            )}
+
+            <button type="submit" disabled={submitting}
+              className="df-btn-primary w-full flex items-center justify-center gap-2 rounded-xl text-base font-semibold"
+              style={{ height: 52, color: "#141209", fontFamily: "Inter", opacity: submitting ? 0.75 : 1, cursor: submitting ? "wait" : "pointer" }}>
+              {submitting ? <><Loader2 size={18} className="df-spin" />Entrando...</> : <>Entrar<ArrowRight size={18} /></>}
+            </button>
+          </form>
+
+          <p className="text-xs text-center mt-6 flex items-center justify-center gap-1.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+            <ShieldCheck size={13} />Acesso liberado apenas para a equipe DieselFilms.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -890,7 +1056,7 @@ function SidebarProfileCard({ currentUser, equipe, setEquipe }) {
 function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
   return (
     <div className="relative flex flex-col h-full" style={{
-      width: 236, borderRight: `1px solid ${C.borderSoft}`,
+      width: 264, flexShrink: 0, borderRight: `1px solid ${C.borderSoft}`,
       backgroundColor: C.bgSoft,
       backgroundImage: `linear-gradient(180deg, rgba(17,17,16,0.85), rgba(17,17,16,0.97)), url(${BG_IMG})`,
       backgroundSize: "cover", backgroundPosition: "top",
@@ -899,20 +1065,20 @@ function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEqu
 
       <SidebarProfileCard currentUser={user} equipe={equipe} setEquipe={setEquipe} />
 
-      <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1">
+      <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1 overflow-y-auto thin-scroll">
         {allowedNav.map((item) => {
           const isActive = active === item.id;
           const Icon = item.icon;
           return (
             <button key={item.id} onClick={() => setActive(item.id)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors"
+              className={`df-nav ${isActive ? "is-active" : ""} flex items-center gap-3 px-3.5 py-3 rounded-xl text-[15px] text-left`}
               style={{
-                background: isActive ? "rgba(201,162,39,0.12)" : "transparent",
+                background: isActive ? "linear-gradient(90deg, rgba(201,162,39,0.18), rgba(201,162,39,0.04))" : "transparent",
                 color: isActive ? C.goldBright : C.textDim,
                 fontFamily: "Inter", fontWeight: isActive ? 600 : 500,
                 borderLeft: isActive ? `2px solid ${C.gold}` : "2px solid transparent",
               }}>
-              <Icon size={16} />
+              <Icon size={18} />
               {item.label}
             </button>
           );
@@ -971,10 +1137,10 @@ function MobileBottomNav({ active, setActive, allowedNav }) {
 --------------------------------------------------------- */
 function ModuleHeader({ title, sub, right }) {
   return (
-    <div className="flex items-center justify-between mb-7 flex-wrap gap-3">
+    <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
       <div>
-        <h1 style={{ fontFamily: "Fraunces", color: C.text }} className="text-2xl font-semibold">{title}</h1>
-        <p className="text-sm mt-1" style={{ color: C.textDim, fontFamily: "Inter" }}>{sub}</p>
+        <h1 style={{ fontFamily: "Fraunces", color: C.text, letterSpacing: "-0.01em" }} className="text-3xl font-semibold">{title}</h1>
+        <p className="text-[15px] mt-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>{sub}</p>
       </div>
       {right}
     </div>
@@ -2195,12 +2361,6 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
 /* ---------------------------------------------------------
    FEED
 --------------------------------------------------------- */
-const POST_TIPOS = [
-  { id: "tarefa", label: "Tarefa" },
-  { id: "frase", label: "Frase" },
-  { id: "foto", label: "Foto" },
-];
-
 function highlightMentions(texto, equipe) {
   const nomes = equipe.map((u) => u.nome).sort((a, b) => b.length - a.length);
   const escapedNomes = nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -2234,200 +2394,628 @@ function extrairMencoes(texto, equipe) {
   return equipe.filter((u) => nomes.includes(u.nome) && texto.includes(`@${u.nome}`));
 }
 
-function CommentBox({ equipe, onSubmit }) {
-  const [texto, setTexto] = useState("");
-  const [mentionQuery, setMentionQuery] = useState(null);
-  const inputRef = React.useRef(null);
+const REACOES = [
+  { id: "curtir", emoji: "👍", label: "Curtir", color: "#6FA8DC" },
+  { id: "amei", emoji: "❤️", label: "Amei", color: "#E8606A" },
+  { id: "visto", emoji: "👀", label: "Visto", color: C.goldBright },
+  { id: "trabalhando", emoji: "🧑‍💻", label: "Trabalhando nisso", color: C.green },
+];
 
-  const handleChange = (e) => {
-    const val = e.target.value;
-    setTexto(val);
-    const cursor = e.target.selectionStart;
-    const upToCursor = val.slice(0, cursor);
-    const atIdx = upToCursor.lastIndexOf("@");
-    if (atIdx === -1 || /\s/.test(upToCursor.slice(atIdx + 1))) {
-      setMentionQuery(null);
-    } else {
-      setMentionQuery(upToCursor.slice(atIdx + 1));
+const EMOJIS = [
+  "😀", "😂", "🤣", "😍", "🥰", "😎", "🤩", "🥳", "😅", "😉", "🤔", "😴",
+  "😮", "😢", "😡", "🙏", "👏", "🙌", "💪", "👍", "👀", "🔥", "✨", "⭐",
+  "❤️", "💛", "🧡", "💯", "✅", "⚡", "🚀", "🎯", "🎬", "🎥", "📸", "🎞️",
+  "🎵", "🎤", "💡", "📌", "📅", "⏰", "💰", "🤝", "🏆", "🎉", "☕", "🍕",
+];
+
+function reacoesDoPost(post) {
+  const r = post.reacoes || {};
+  const out = {};
+  REACOES.forEach((x) => { out[x.id] = Array.isArray(r[x.id]) ? r[x.id] : []; });
+  return out;
+}
+
+// fotos/vídeos do post, juntando o formato novo (midias) com o antigo (fotoUrl)
+function midiasDoPost(post) {
+  if (Array.isArray(post.midias) && post.midias.length) return post.midias;
+  if (post.fotoUrl) return [{ url: post.fotoUrl, tipo: "imagem" }];
+  return [];
+}
+
+function FeedAvatar({ user, nome, size = 40, ring }) {
+  const n = user?.nome || nome || "";
+  const iniciais = n.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className="rounded-full flex items-center justify-center font-semibold overflow-hidden flex-shrink-0"
+      style={{
+        width: size, height: size, fontSize: size * 0.34, background: C.goldDim, color: C.text, fontFamily: "Inter",
+        boxShadow: ring ? `0 0 0 2px ${C.bg}, 0 0 0 3.5px rgba(201,162,39,0.7)` : "none",
+      }}>
+      {user?.fotoUrl ? <img src={user.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+    </div>
+  );
+}
+
+function EmojiPicker({ onPick, onClose, style }) {
+  useEffect(() => {
+    const fechar = (e) => { if (!e.target.closest?.("[data-emoji-picker]")) onClose(); };
+    const t = setTimeout(() => document.addEventListener("mousedown", fechar), 0);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", fechar); };
+  }, [onClose]);
+  return (
+    <div data-emoji-picker className="absolute z-20 rounded-2xl p-3 df-scale-in"
+      style={{ width: 316, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 20px 50px rgba(0,0,0,0.55)", ...style }}>
+      <div className="text-xs font-medium mb-2 px-1" style={{ color: C.textFaint, fontFamily: "Inter" }}>Emojis</div>
+      <div className="grid grid-cols-8 gap-0.5">
+        {EMOJIS.map((e) => (
+          <button key={e} type="button" onClick={() => onPick(e)}
+            className="rounded-lg text-2xl leading-none flex items-center justify-center transition-transform hover:scale-125"
+            style={{ width: 36, height: 36 }}>
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MidiaItem({ m, cover, onClick, extra }) {
+  return (
+    <button type="button" onClick={onClick} className="relative block w-full h-full overflow-hidden group" style={{ background: "#050504" }}>
+      {m.tipo === "video" ? (
+        <video src={m.url} className="w-full h-full" style={{ objectFit: cover ? "cover" : "contain", maxHeight: cover ? "none" : 680 }}
+          muted playsInline preload="metadata" />
+      ) : (
+        <img src={m.url} alt="" loading="lazy" className="w-full h-full transition-transform duration-500 group-hover:scale-[1.02]"
+          style={{ objectFit: cover ? "cover" : "contain", maxHeight: cover ? "none" : 680 }} />
+      )}
+      {m.tipo === "video" && !extra && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.55)", border: "2px solid rgba(255,255,255,0.8)", backdropFilter: "blur(2px)" }}>
+            <Play size={26} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
+          </span>
+        </span>
+      )}
+      {extra > 0 && (
+        <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold"
+          style={{ background: "rgba(0,0,0,0.55)", color: "#fff", fontFamily: "Inter" }}>+{extra}</span>
+      )}
+    </button>
+  );
+}
+
+// Grade de fotos/vídeos estilo Facebook: 1 grande, 2 lado a lado, 3+ em mosaico.
+function MidiaGrid({ midias, onOpen }) {
+  if (!midias.length) return null;
+  if (midias.length === 1) {
+    const m = midias[0];
+    if (m.tipo === "video") {
+      return <video src={m.url} controls playsInline preload="metadata" className="w-full block" style={{ maxHeight: 680, background: "#050504" }} />;
     }
-  };
+    return <MidiaItem m={m} onClick={() => onOpen(0)} />;
+  }
+  const mostrar = midias.slice(0, midias.length === 3 ? 3 : 4);
+  const resto = midias.length - mostrar.length;
+  if (midias.length === 2) {
+    return (
+      <div className="grid grid-cols-2 gap-0.5" style={{ height: 380 }}>
+        {mostrar.map((m, i) => <MidiaItem key={i} m={m} cover onClick={() => onOpen(i)} />)}
+      </div>
+    );
+  }
+  if (midias.length === 3) {
+    return (
+      <div className="grid grid-cols-2 grid-rows-2 gap-0.5" style={{ height: 460 }}>
+        <div className="row-span-2"><MidiaItem m={mostrar[0]} cover onClick={() => onOpen(0)} /></div>
+        <MidiaItem m={mostrar[1]} cover onClick={() => onOpen(1)} />
+        <MidiaItem m={mostrar[2]} cover onClick={() => onOpen(2)} />
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 grid-rows-2 gap-0.5" style={{ height: 480 }}>
+      {mostrar.map((m, i) => <MidiaItem key={i} m={m} cover onClick={() => onOpen(i)} extra={i === 3 ? resto : 0} />)}
+    </div>
+  );
+}
 
-  const pickMention = (nome) => {
+function Lightbox({ midias, index, onClose }) {
+  const [i, setI] = useState(index);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") setI((x) => Math.min(midias.length - 1, x + 1));
+      if (e.key === "ArrowLeft") setI((x) => Math.max(0, x - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [midias.length, onClose]);
+  const m = midias[i];
+  const navBtn = { background: "rgba(255,255,255,0.1)", color: "#fff", backdropFilter: "blur(6px)" };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center df-fade-in" style={{ background: "rgba(0,0,0,0.94)" }} onClick={onClose}>
+      <button onClick={onClose} title="Fechar (Esc)" className="absolute top-5 right-5 p-3 rounded-full" style={navBtn}><X size={22} /></button>
+      {midias.length > 1 && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 text-sm px-3 py-1 rounded-full" style={{ ...navBtn, fontFamily: "Inter" }}>{i + 1} / {midias.length}</div>
+      )}
+      {i > 0 && (
+        <button onClick={(e) => { e.stopPropagation(); setI(i - 1); }} className="absolute left-5 p-3 rounded-full" style={navBtn}><ChevronLeft size={26} /></button>
+      )}
+      <div onClick={(e) => e.stopPropagation()} className="df-scale-in" key={i}>
+        {m.tipo === "video"
+          ? <video src={m.url} controls autoPlay playsInline style={{ maxWidth: "92vw", maxHeight: "88vh" }} />
+          : <img src={m.url} alt="" style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain" }} />}
+      </div>
+      {i < midias.length - 1 && (
+        <button onClick={(e) => { e.stopPropagation(); setI(i + 1); }} className="absolute right-5 p-3 rounded-full" style={navBtn}><ChevronRight size={26} /></button>
+      )}
+    </div>
+  );
+}
+
+// Campo de texto com sugestão de @menção (comentários e composer)
+function useMencao(equipe, texto, setTexto, inputRef) {
+  const [query, setQuery] = useState(null);
+  const onChangeTexto = (val, cursor) => {
+    setTexto(val);
+    const ate = val.slice(0, cursor);
+    const at = ate.lastIndexOf("@");
+    setQuery(at === -1 || /\s/.test(ate.slice(at + 1)) ? null : ate.slice(at + 1));
+  };
+  const escolher = (nome) => {
     const cursor = inputRef.current?.selectionStart ?? texto.length;
-    const upToCursor = texto.slice(0, cursor);
-    const atIdx = upToCursor.lastIndexOf("@");
-    const before = texto.slice(0, atIdx);
-    const after = texto.slice(cursor);
-    const novo = `${before}@${nome} ${after}`;
-    setTexto(novo);
-    setMentionQuery(null);
+    const ate = texto.slice(0, cursor);
+    const at = ate.lastIndexOf("@");
+    setTexto(`${texto.slice(0, at)}@${nome} ${texto.slice(cursor)}`);
+    setQuery(null);
     inputRef.current?.focus();
   };
+  const sugestoes = query === null ? [] : equipe.filter((u) => u.nome.toLowerCase().includes(query.toLowerCase())).slice(0, 5);
+  return { onChangeTexto, escolher, sugestoes, fechar: () => setQuery(null) };
+}
+
+function SugestoesMencao({ sugestoes, onPick, style }) {
+  if (!sugestoes.length) return null;
+  return (
+    <div className="absolute z-20 rounded-xl overflow-hidden py-1 df-fade-in"
+      style={{ background: "#1E1D19", border: `1px solid ${C.border}`, minWidth: 220, boxShadow: "0 14px 34px rgba(0,0,0,0.5)", ...style }}>
+      {sugestoes.map((u) => (
+        <button key={u.id} type="button" onMouseDown={(e) => { e.preventDefault(); onPick(u.nome); }}
+          className="df-btn-ghost flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm"
+          style={{ color: C.text, fontFamily: "Inter", border: "1px solid transparent" }}>
+          <FeedAvatar user={u} size={26} />{u.nome}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CommentBox({ equipe, currentUser, onSubmit }) {
+  const [texto, setTexto] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const inputRef = React.useRef(null);
+  const mencao = useMencao(equipe, texto, setTexto, inputRef);
 
   const submit = () => {
     if (!texto.trim()) return;
     onSubmit(texto.trim());
     setTexto("");
-    setMentionQuery(null);
+    mencao.fechar();
   };
 
-  const sugestoes = mentionQuery === null ? [] :
-    equipe.filter((u) => u.nome.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
-
   return (
-    <div className="relative flex gap-2 mt-2">
-      <input ref={inputRef} style={{ ...inputStyle, flex: 1 }} placeholder="Escreva um comentário... use @ para marcar alguém"
-        value={texto} onChange={handleChange}
-        onKeyDown={(e) => e.key === "Enter" && submit()} />
-      <button onClick={submit} className="px-3 rounded-lg" style={{ background: C.gold, color: "#141209" }}>
-        <Send size={15} />
-      </button>
-      {sugestoes.length > 0 && (
-        <div className="absolute z-10 rounded-lg overflow-hidden" style={{ top: "100%", left: 0, marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, minWidth: 200 }}>
-          {sugestoes.map((u) => (
-            <button key={u.id} type="button" onClick={() => pickMention(u.nome)}
-              className="block w-full text-left px-3 py-2 text-sm"
-              style={{ color: C.text, fontFamily: "Inter" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-              {u.nome}
-            </button>
-          ))}
+    <div className="flex items-center gap-2.5 mt-3">
+      <FeedAvatar user={currentUser} size={34} />
+      <div className="relative flex-1">
+        <input ref={inputRef} value={texto} placeholder="Escreva um comentário... use @ pra marcar alguém"
+          onChange={(e) => mencao.onChangeTexto(e.target.value, e.target.selectionStart)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+          style={{ ...inputStyle, borderRadius: 999, padding: "10px 84px 10px 16px", background: "#1E1D19", fontSize: 14 }} />
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
+          <button type="button" onClick={() => setEmojiOpen((v) => !v)} title="Emoji" className="p-1.5 rounded-full text-lg leading-none">🙂</button>
+          <button type="button" onClick={submit} title="Enviar" disabled={!texto.trim()}
+            className="p-2 rounded-full transition-colors" style={{ color: texto.trim() ? C.goldBright : C.textFaint }}>
+            <Send size={16} />
+          </button>
         </div>
-      )}
+        {emojiOpen && (
+          <EmojiPicker style={{ right: 0, bottom: "calc(100% + 8px)" }} onClose={() => setEmojiOpen(false)}
+            onPick={(e) => { setTexto((t) => t + e); inputRef.current?.focus(); }} />
+        )}
+        <SugestoesMencao sugestoes={mencao.sugestoes} onPick={mencao.escolher} style={{ left: 0, top: "calc(100% + 6px)" }} />
+      </div>
     </div>
   );
 }
 
-function ExpandableText({ text, style, limit = 220, equipe = [] }) {
+function ExpandableText({ text, style, limit = 320, equipe = [] }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
   const isLong = text.length > limit;
   const shown = expanded || !isLong ? text : `${text.slice(0, limit).trimEnd()}… `;
   return (
-    <div style={{ whiteSpace: "pre-wrap", ...style }}>
+    <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", ...style }}>
       {highlightMentions(shown, equipe)}
       {isLong && (
-        <button onClick={() => setExpanded(!expanded)} style={{ color: C.goldBright, fontWeight: 600, marginLeft: 4 }}>
-          {expanded ? "ver menos" : "...mais"}
+        <button onClick={() => setExpanded(!expanded)} style={{ color: C.text, fontWeight: 600, marginLeft: 4 }}>
+          {expanded ? "Ver menos" : "Ver mais"}
         </button>
       )}
     </div>
   );
 }
 
-function PostCard({ post, equipe, currentUser, onToggleReacao, onAddComentario, onDelete }) {
+function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDelete }) {
   const [showComments, setShowComments] = useState(false);
-  const reagiuVisto = post.reacoes.visto.includes(currentUser.id);
-  const reagiuTrabalhando = post.reacoes.trabalhando.includes(currentUser.id);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const pickerTimer = useRef(null);
+
+  const reacoes = reacoesDoPost(post);
+  const minha = REACOES.find((r) => reacoes[r.id].includes(currentUser.id));
+  const totalReacoes = REACOES.reduce((s, r) => s + reacoes[r.id].length, 0);
+  const tiposUsados = REACOES.filter((r) => reacoes[r.id].length > 0).sort((a, b) => reacoes[b.id].length - reacoes[a.id].length);
+  const quemReagiu = REACOES.flatMap((r) => reacoes[r.id].map((id) => `${r.emoji} ${equipe.find((u) => u.id === id)?.nome || "Alguém"}`));
+  const comentarios = post.comentarios || [];
   const podeExcluir = post.autorId === currentUser.id || CARGOS_GESTAO.includes(currentUser.papel);
-  const iniciais = post.autorNome.split(" ").map((p) => p[0]).slice(0, 2).join("");
   const autor = equipe.find((u) => u.id === post.autorId);
-  const autorFotoUrl = autor?.fotoUrl;
-  const autorPapel = autor?.papel;
-  const data = new Date(post.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const midias = midiasDoPost(post);
+  const texto = post.tipo === "foto" ? post.descricao : post.texto;
+  const textoGrande = post.tipo !== "frase" && midias.length === 0 && texto && texto.length < 110 && !texto.includes("\n");
+
+  const abrirPicker = () => { clearTimeout(pickerTimer.current); pickerTimer.current = setTimeout(() => setPickerOpen(true), 350); };
+  const fecharPicker = () => { clearTimeout(pickerTimer.current); pickerTimer.current = setTimeout(() => setPickerOpen(false), 300); };
+  const reagir = (id) => { setPickerOpen(false); onReagir(post, id); };
 
   return (
-    <div className="rounded-xl p-5 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
-            style={{ background: C.goldDim, color: "#141209", fontFamily: "Inter" }}>
-            {autorFotoUrl ? <img src={autorFotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
-          </div>
-          <div>
-            <div className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>{post.autorNome}</div>
-            {autorPapel && <div className="text-xs" style={{ color: C.textFaint }}>{autorPapel} · DieselFilms</div>}
-            <div className="text-xs" style={{ color: C.textFaint }}>{data}</div>
+    <article className="rounded-2xl mb-5 df-fade-up" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+      <header className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <FeedAvatar user={autor} nome={post.autorNome} size={44} />
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{post.autorNome}</div>
+            <div className="text-xs flex items-center gap-1.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+              {autor?.papel && <><span>{autor.papel}</span><span>·</span></>}
+              <span title={new Date(post.criadoEm).toLocaleString("pt-BR")}>{tempoRelativo(post.criadoEm)}</span>
+            </div>
           </div>
         </div>
-        {podeExcluir && <IconBtn onClick={() => onDelete(post.id)} title="Excluir"><Trash2 size={14} /></IconBtn>}
-      </div>
+        {podeExcluir && (
+          <div className="relative">
+            <button onClick={() => setMenuOpen((v) => !v)} title="Opções" className="df-btn-ghost p-2 rounded-full" style={{ color: C.textDim, border: "1px solid transparent" }}>
+              <span className="text-lg leading-none tracking-widest">···</span>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 z-20 rounded-xl py-1 df-scale-in" onMouseLeave={() => setMenuOpen(false)}
+                style={{ top: "100%", minWidth: 190, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)" }}>
+                <button onClick={() => { setMenuOpen(false); if (window.confirm("Excluir essa publicação?")) onDelete(post.id); }}
+                  className="df-btn-ghost flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-left" style={{ color: C.red, fontFamily: "Inter", border: "1px solid transparent" }}>
+                  <Trash2 size={15} />Excluir publicação
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </header>
 
-      {post.tipo === "tarefa" && (
-        <ExpandableText text={post.texto} equipe={equipe} style={{ fontSize: 14, color: C.text, fontFamily: "Inter", lineHeight: 1.5 }} />
-      )}
-      {post.tipo === "frase" && (
-        <div className="text-center py-3">
-          <div className="text-xl" style={{ color: C.goldBright, fontFamily: "Fraunces", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
+      {post.tipo === "frase" ? (
+        <div className="mx-5 mb-4 rounded-xl px-6 py-8 text-center"
+          style={{ background: "radial-gradient(120% 120% at 50% 0%, rgba(201,162,39,0.22), rgba(201,162,39,0.04) 60%)", border: "1px solid rgba(201,162,39,0.2)" }}>
+          <div className="text-2xl" style={{ color: C.goldBright, fontFamily: "Fraunces", fontStyle: "italic", whiteSpace: "pre-wrap", lineHeight: 1.35 }}>
             “{highlightMentions(post.texto, equipe)}”
           </div>
-          {post.autoria && <div className="text-xs mt-2" style={{ color: C.textFaint }}>— {post.autoria}</div>}
+          {post.autoria && <div className="text-sm mt-3" style={{ color: C.textDim }}>— {post.autoria}</div>}
         </div>
-      )}
-      {post.tipo === "foto" && (
-        <div>
-          <img src={post.fotoUrl} alt={post.descricao || ""} className="w-full rounded-lg mb-2" style={{ maxHeight: 420, objectFit: "cover" }} />
-          {post.descricao && <ExpandableText text={post.descricao} equipe={equipe} style={{ fontSize: 14, color: C.textDim, fontFamily: "Inter", lineHeight: 1.5 }} />}
+      ) : texto ? (
+        <div className="px-5 pb-3">
+          <ExpandableText text={texto} equipe={equipe}
+            style={{ fontSize: textoGrande ? 22 : 15, color: C.text, fontFamily: "Inter", lineHeight: textoGrande ? 1.35 : 1.6 }} />
+        </div>
+      ) : null}
+
+      {midias.length > 0 && (
+        <div style={{ borderTop: `1px solid ${C.borderSoft}`, borderBottom: `1px solid ${C.borderSoft}` }}>
+          <MidiaGrid midias={midias} onOpen={(i) => setLightbox(i)} />
         </div>
       )}
 
-      {(post.reacoes.visto.length + post.reacoes.trabalhando.length > 0 || post.comentarios.length > 0) && (
-        <div className="flex items-center justify-between text-xs mt-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>
-          <span>
-            {post.reacoes.visto.length + post.reacoes.trabalhando.length > 0
-              ? `👁️ ${post.reacoes.visto.length} · 🧑‍💻 ${post.reacoes.trabalhando.length}`
-              : ""}
-          </span>
-          <span>
-            {post.comentarios.length > 0 ? `${post.comentarios.length} comentário${post.comentarios.length === 1 ? "" : "s"}` : ""}
-          </span>
+      {(totalReacoes > 0 || comentarios.length > 0) && (
+        <div className="flex items-center justify-between px-5 pt-3 text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>
+          <div className="flex items-center gap-1.5" title={quemReagiu.join("\n")}>
+            {totalReacoes > 0 && (
+              <>
+                <span className="flex">
+                  {tiposUsados.slice(0, 3).map((r, i) => (
+                    <span key={r.id} className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[13px]"
+                      style={{ background: "#26241F", border: `2px solid ${C.surface}`, marginLeft: i ? -6 : 0, zIndex: 3 - i }}>{r.emoji}</span>
+                  ))}
+                </span>
+                <span>{totalReacoes}</span>
+              </>
+            )}
+          </div>
+          {comentarios.length > 0 && (
+            <button onClick={() => setShowComments((v) => !v)} className="hover:underline">
+              {comentarios.length} comentário{comentarios.length === 1 ? "" : "s"}
+            </button>
+          )}
         </div>
       )}
 
-      <div className="grid grid-cols-3 mt-3 pt-1" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <button onClick={() => onToggleReacao(post, "visto")}
-          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
-          style={{ color: reagiuVisto ? C.goldBright : C.textDim, fontFamily: "Inter", background: reagiuVisto ? "rgba(201,162,39,0.1)" : "transparent" }}>
-          👁️ Visto
-        </button>
-        <button onClick={() => onToggleReacao(post, "trabalhando")}
-          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
-          style={{ color: reagiuTrabalhando ? C.goldBright : C.textDim, fontFamily: "Inter", background: reagiuTrabalhando ? "rgba(201,162,39,0.1)" : "transparent" }}>
-          🧑‍💻 Trabalhando
-        </button>
-        <button onClick={() => setShowComments(!showComments)}
-          className="flex items-center justify-center gap-2 py-2 rounded-lg text-sm"
-          style={{ color: showComments ? C.goldBright : C.textDim, fontFamily: "Inter", background: showComments ? "rgba(201,162,39,0.1)" : "transparent" }}>
-          <MessageCircle size={15} />Comentar
+      <div className="grid grid-cols-2 gap-1 mx-3 mt-2 py-1" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+        <div className="relative" onMouseEnter={abrirPicker} onMouseLeave={fecharPicker}>
+          <button onClick={() => reagir(minha ? minha.id : "curtir")}
+            className="df-btn-ghost w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[15px] font-medium"
+            style={{ color: minha ? minha.color : C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
+            {minha ? <span className="text-lg leading-none">{minha.emoji}</span> : <Heart size={18} />}
+            {minha ? minha.label : "Reagir"}
+          </button>
+          {pickerOpen && (
+            <div className="absolute z-20 flex items-center gap-1 px-2 py-1.5 rounded-full df-scale-in"
+              style={{ bottom: "calc(100% + 4px)", left: 0, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)" }}>
+              {REACOES.map((r) => (
+                <button key={r.id} onClick={() => reagir(r.id)} title={r.label}
+                  className="text-[28px] leading-none p-1 rounded-full transition-transform duration-150 hover:scale-[1.35] hover:-translate-y-1">
+                  {r.emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button onClick={() => setShowComments((v) => !v)}
+          className="df-btn-ghost flex items-center justify-center gap-2 py-2.5 rounded-xl text-[15px] font-medium"
+          style={{ color: showComments ? C.goldBright : C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
+          <MessageCircle size={18} />Comentar
         </button>
       </div>
 
       {showComments && (
-        <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-          <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
-            {post.comentarios.map((c) => (
-              <div key={c.id} className="text-xs rounded-lg p-2.5" style={{ background: C.bgSoft, border: `1px solid ${C.borderSoft}` }}>
-                <div style={{ color: C.textFaint, marginBottom: 2 }}>{c.autorNome}</div>
-                <div style={{ color: C.text, fontFamily: "Inter" }}>{highlightMentions(c.texto, equipe)}</div>
-              </div>
-            ))}
-            {post.comentarios.length === 0 && <div className="text-xs" style={{ color: C.textFaint }}>Nenhum comentário ainda.</div>}
+        <div className="px-5 pb-4 pt-1 df-fade-in" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+          <div className="flex flex-col gap-2.5 mt-3 max-h-80 overflow-y-auto thin-scroll pr-1">
+            {comentarios.map((c) => {
+              const u = equipe.find((x) => x.id === c.autorId);
+              return (
+                <div key={c.id} className="flex items-start gap-2.5">
+                  <FeedAvatar user={u} nome={c.autorNome} size={32} />
+                  <div className="min-w-0">
+                    <div className="rounded-2xl px-3.5 py-2" style={{ background: "#1E1D19" }}>
+                      <div className="text-[13px] font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{c.autorNome}</div>
+                      <div className="text-sm" style={{ color: C.text, fontFamily: "Inter", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{highlightMentions(c.texto, equipe)}</div>
+                    </div>
+                    {c.criadoEm && <div className="text-[11px] mt-1 ml-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>{tempoRelativo(c.criadoEm)}</div>}
+                  </div>
+                </div>
+              );
+            })}
+            {comentarios.length === 0 && <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Seja o primeiro a comentar.</div>}
           </div>
-          <CommentBox equipe={equipe} onSubmit={(texto) => onAddComentario(post, texto)} />
+          <CommentBox equipe={equipe} currentUser={currentUser} onSubmit={(t) => onAddComentario(post, t)} />
         </div>
       )}
+
+      {lightbox !== null && <Lightbox midias={midias} index={lightbox} onClose={() => setLightbox(null)} />}
+    </article>
+  );
+}
+
+const MAX_MIDIAS_POST = 10;
+
+function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPublicado }) {
+  const [texto, setTexto] = useState("");
+  const [itens, setItens] = useState([]);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [arrastando, setArrastando] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const textRef = useRef(null);
+  const fileRef = useRef(null);
+  const mencao = useMencao(equipe, texto, setTexto, textRef);
+  const primeiroNome = currentUser.nome.split(" ")[0];
+
+  const itensRef = useRef([]);
+  const iniciou = useRef(false);
+  const atualizar = (id, patch) => setItens((lista) => lista.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+  const adicionarArquivos = (files) => {
+    const validos = Array.from(files || []).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+    if (!validos.length) { if (files?.length) toastError("Só dá pra adicionar fotos e vídeos."); return; }
+    const espaco = MAX_MIDIAS_POST - itensRef.current.length;
+    if (validos.length > espaco) toastError(`Cada publicação aceita até ${MAX_MIDIAS_POST} fotos/vídeos.`);
+    const novos = validos.slice(0, Math.max(0, espaco)).map((file) => ({
+      id: uid(), file, preview: URL.createObjectURL(file),
+      tipo: file.type.startsWith("video/") ? "video" : "imagem", progresso: 0, url: "", erro: false,
+    }));
+    if (!novos.length) return;
+    itensRef.current = [...itensRef.current, ...novos];
+    setItens((lista) => [...lista, ...novos]);
+    novos.forEach((n) => {
+      uploadMidia(n.file, (p) => atualizar(n.id, { progresso: p }))
+        .then((url) => atualizar(n.id, { url, progresso: 100 }))
+        .catch(() => { atualizar(n.id, { erro: true }); toastError(`Não deu pra enviar "${n.file.name}".`); });
+    });
+  };
+
+  useEffect(() => {
+    if (!iniciou.current) {
+      iniciou.current = true;
+      if (arquivosIniciais?.length) adicionarArquivos(arquivosIniciais);
+    }
+    const t = setTimeout(() => textRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  const remover = (id) => {
+    const x = itensRef.current.find((i) => i.id === id);
+    if (x) URL.revokeObjectURL(x.preview);
+    itensRef.current = itensRef.current.filter((i) => i.id !== id);
+    setItens((lista) => lista.filter((i) => i.id !== id));
+  };
+
+  const enviando = itens.some((x) => !x.url && !x.erro);
+  const prontos = itens.filter((x) => x.url);
+  const podePostar = (texto.trim() || prontos.length) && !enviando && !posting;
+
+  const inserirNoCursor = (s) => {
+    const el = textRef.current;
+    const ini = el ? el.selectionStart : texto.length;
+    const fim = el ? el.selectionEnd : texto.length;
+    const novo = texto.slice(0, ini) + s + texto.slice(fim);
+    setTexto(novo);
+    setTimeout(() => { el?.focus(); el?.setSelectionRange(ini + s.length, ini + s.length); }, 0);
+    return { novo, cursor: ini + s.length };
+  };
+
+  const publicar = async () => {
+    if (!podePostar) return;
+    setPosting(true);
+    try {
+      const post = await createPost({ tipo: "post", texto: texto.trim(), midias: prontos.map((x) => ({ url: x.url, tipo: x.tipo })) });
+      onPublicado(post, texto.trim());
+    } catch {
+      toastError("Não deu pra publicar agora. Tente de novo.");
+      setPosting(false);
+    }
+  };
+
+  const fecharComCuidado = () => {
+    if ((texto.trim() || itens.length) && !window.confirm("Descartar essa publicação?")) return;
+    onClose();
+  };
+
+  const textoGrande = !itens.length && texto.length < 85;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 df-fade-in"
+      style={{ background: "rgba(5,5,4,0.75)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      onKeyDown={(e) => { if (e.key === "Escape") fecharComCuidado(); }}>
+      <div className="w-full max-w-[560px] rounded-2xl df-scale-in flex flex-col relative"
+        style={{ background: "#191815", border: `1px solid ${arrastando ? C.gold : C.border}`, boxShadow: "0 30px 80px rgba(0,0,0,0.6)", maxHeight: "92vh" }}
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setArrastando(false); }}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); adicionarArquivos(e.dataTransfer.files); }}>
+
+        <div className="relative flex items-center justify-center px-5 py-4" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+          <h3 className="text-xl font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>Criar publicação</h3>
+          <button onClick={fecharComCuidado} title="Fechar" className="absolute right-4 p-2 rounded-full df-btn-ghost"
+            style={{ background: "#26241F", color: C.textDim, border: "1px solid transparent" }}><X size={18} /></button>
+        </div>
+
+        <div className="overflow-y-auto thin-scroll px-5 pt-4 pb-2 flex-1">
+          <div className="flex items-center gap-3 mb-3">
+            <FeedAvatar user={currentUser} size={44} />
+            <div>
+              <div className="text-[15px] font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{currentUser.nome}</div>
+              <div className="text-xs flex items-center gap-1" style={{ color: C.textFaint, fontFamily: "Inter" }}><Users size={12} />Equipe DieselFilms</div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <textarea ref={textRef} value={texto} rows={textoGrande ? 3 : 4}
+              placeholder={`No que você está pensando, ${primeiroNome}?`}
+              onChange={(e) => mencao.onChangeTexto(e.target.value, e.target.selectionStart)}
+              onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); adicionarArquivos(e.clipboardData.files); } }}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) publicar(); }}
+              className="w-full resize-none bg-transparent"
+              style={{ border: "none", outline: "none", boxShadow: "none", color: C.text, fontFamily: "Inter", fontSize: textoGrande ? 24 : 16, lineHeight: 1.4, minHeight: textoGrande ? 110 : 90 }} />
+            <SugestoesMencao sugestoes={mencao.sugestoes} onPick={mencao.escolher} style={{ left: 0, top: "100%" }} />
+          </div>
+
+          {itens.length > 0 && (
+            <div className="rounded-xl p-2 mb-3 grid gap-2" style={{ border: `1px solid ${C.border}`, gridTemplateColumns: itens.length === 1 ? "1fr" : "repeat(auto-fill, minmax(150px, 1fr))" }}>
+              {itens.map((x) => (
+                <div key={x.id} className="relative rounded-lg overflow-hidden df-scale-in" style={{ background: "#050504", height: itens.length === 1 ? 300 : 150 }}>
+                  {x.tipo === "video"
+                    ? <video src={x.preview} muted playsInline className="w-full h-full" style={{ objectFit: itens.length === 1 ? "contain" : "cover" }} />
+                    : <img src={x.preview} alt="" className="w-full h-full" style={{ objectFit: itens.length === 1 ? "contain" : "cover" }} />}
+                  {x.tipo === "video" && <span className="absolute left-2 top-2 px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>VÍDEO</span>}
+                  <button onClick={() => remover(x.id)} title="Remover" className="absolute right-2 top-2 p-1.5 rounded-full" style={{ background: "rgba(20,20,18,0.85)", color: "#fff" }}><X size={15} /></button>
+                  {!x.url && !x.erro && (
+                    <div className="absolute inset-x-0 bottom-0 p-2" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.75))" }}>
+                      <div className="flex items-center justify-between text-[11px] mb-1" style={{ color: "#fff", fontFamily: "Inter" }}>
+                        <span className="flex items-center gap-1"><Loader2 size={12} className="df-spin" />Enviando</span><span>{x.progresso}%</span>
+                      </div>
+                      <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.2)" }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${x.progresso}%`, background: C.gold }} />
+                      </div>
+                    </div>
+                  )}
+                  {x.erro && (
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-center p-2" style={{ background: "rgba(60,15,10,0.75)", color: "#fff", fontFamily: "Inter" }}>
+                      Falhou ao enviar — remova e tente de novo
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {arrastando && (
+            <div className="absolute inset-0 z-10 m-2 rounded-2xl flex flex-col items-center justify-center gap-2 pointer-events-none"
+              style={{ background: "rgba(20,18,12,0.92)", border: `2px dashed ${C.gold}`, color: C.goldBright, fontFamily: "Inter" }}>
+              <Upload size={32} /><div className="text-lg font-semibold">Solte as fotos e vídeos aqui</div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 pb-5 pt-2">
+          <div className="relative flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 mb-3" style={{ border: `1px solid ${C.border}` }}>
+            <span className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Adicionar à publicação</span>
+            <div className="flex items-center gap-1">
+              <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
+                onChange={(e) => { adicionarArquivos(e.target.files); e.target.value = ""; }} />
+              <button type="button" onClick={() => fileRef.current?.click()} title="Foto/vídeo" className="df-btn-ghost p-2 rounded-full" style={{ border: "1px solid transparent" }}>
+                <span className="block text-[22px] leading-none">🖼️</span>
+              </button>
+              <button type="button" onClick={() => { const { novo, cursor } = inserirNoCursor("@"); mencao.onChangeTexto(novo, cursor); }} title="Marcar pessoa"
+                className="df-btn-ghost p-2 rounded-full" style={{ border: "1px solid transparent" }}>
+                <UserPlus size={22} color="#6FA8DC" />
+              </button>
+              <button type="button" onClick={() => setEmojiOpen((v) => !v)} title="Emoji" className="df-btn-ghost p-2 rounded-full" style={{ border: "1px solid transparent" }}>
+                <span className="block text-[22px] leading-none">😊</span>
+              </button>
+            </div>
+            {emojiOpen && (
+              <EmojiPicker style={{ right: 0, bottom: "calc(100% + 8px)" }} onClose={() => setEmojiOpen(false)} onPick={(e) => inserirNoCursor(e)} />
+            )}
+          </div>
+          <button onClick={publicar} disabled={!podePostar}
+            className="df-btn-primary w-full flex items-center justify-center gap-2 rounded-xl text-[15px] font-semibold"
+            style={{ height: 46, color: "#141209", fontFamily: "Inter", opacity: podePostar ? 1 : 0.4, cursor: podePostar ? "pointer" : "not-allowed" }}>
+            {posting ? <><Loader2 size={17} className="df-spin" />Publicando...</> : enviando ? <><Loader2 size={17} className="df-spin" />Enviando arquivos...</> : "Publicar"}
+          </button>
+        </div>
+      </div>
     </div>
   );
+}
+
+function proximosAniversarios(equipe) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  return equipe
+    .filter((u) => /^\d{4}-\d{2}-\d{2}$/.test(u.aniversario || ""))
+    .map((u) => {
+      const [, m, d] = u.aniversario.split("-").map(Number);
+      let prox = new Date(hoje.getFullYear(), m - 1, d);
+      if (prox < hoje) prox = new Date(hoje.getFullYear() + 1, m - 1, d);
+      return { u, dias: Math.round((prox - hoje) / 86400000), prox };
+    })
+    .filter((x) => x.dias <= 30)
+    .sort((a, b) => a.dias - b.dias);
 }
 
 function FeedModule({ equipe, currentUser }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tipo, setTipo] = useState("tarefa");
-  const [texto, setTexto] = useState("");
-  const [autoria, setAutoria] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [fotoUrl, setFotoUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [posting, setPosting] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [composer, setComposer] = useState(null); // null fechado | { arquivos: File[] }
+  const [arrastando, setArrastando] = useState(false);
+  const fileRef = useRef(null);
 
   const fetchPosts = () => {
     listPosts()
       .then((data) => { setPosts(data); setError(""); })
-      .catch(() => setError("Não deu pra carregar o feed agora. Confirme se o backend está configurado na Vercel."))
+      .catch(() => setError("Não deu pra carregar o feed agora. Confira sua internet."))
       .finally(() => setLoading(false));
   };
 
@@ -2437,182 +3025,158 @@ function FeedModule({ equipe, currentUser }) {
     return () => clearInterval(interval);
   }, []);
 
-  const resetComposer = () => {
-    setTexto(""); setAutoria(""); setDescricao(""); setFotoUrl("");
-  };
-
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const url = await uploadImagem(file);
-      setFotoUrl(url);
-    } catch {
-      setError("Não deu pra enviar a foto. Confirme se o Vercel Blob está conectado.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const podePostar =
-    (tipo === "tarefa" && texto.trim()) ||
-    (tipo === "frase" && texto.trim()) ||
-    (tipo === "foto" && fotoUrl && !uploading);
-
-  const publicar = async () => {
-    if (!podePostar) return;
-    setPosting(true);
-    const payload = {
-      tipo, autorId: currentUser.id, autorNome: currentUser.nome,
-      texto: tipo === "foto" ? "" : texto.trim(),
-      autoria: tipo === "frase" ? autoria.trim() : "",
-      fotoUrl: tipo === "foto" ? fotoUrl : "",
-      descricao: tipo === "foto" ? descricao.trim() : "",
-    };
-    try {
-      const post = await createPost(payload);
-      setPosts([post, ...posts]);
-      resetComposer();
-      setError("");
-      setComposerOpen(false);
-    } catch {
-      setError("Não deu pra publicar agora. Confirme se o backend está configurado na Vercel.");
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const toggleReacao = async (post, tipoReacao) => {
-    const jaReagiu = post.reacoes[tipoReacao].includes(currentUser.id);
-    const novaLista = jaReagiu
-      ? post.reacoes[tipoReacao].filter((id) => id !== currentUser.id)
-      : [...post.reacoes[tipoReacao], currentUser.id];
-    const novasReacoes = { ...post.reacoes, [tipoReacao]: novaLista };
-    setPosts(posts.map((p) => (p.id === post.id ? { ...p, reacoes: novasReacoes } : p)));
-    updatePost(post.id, { reacoes: novasReacoes }).catch(() => toastError("Não deu pra registrar sua reação. Tente de novo."));
-  };
-
-  const addComentario = async (post, texto) => {
-    const comentario = { id: uid(), autorId: currentUser.id, autorNome: currentUser.nome, texto, criadoEm: new Date().toISOString() };
-    const novaLista = [...post.comentarios, comentario];
-    setPosts(posts.map((p) => (p.id === post.id ? { ...p, comentarios: novaLista } : p)));
-    updatePost(post.id, { comentarios: novaLista }).catch(() => toastError("Não deu pra salvar o comentário. Tente de novo."));
-
-    const mencionados = extrairMencoes(texto, equipe).filter((u) => u.id !== currentUser.id);
-    mencionados.forEach((u) => {
+  const notificarMencoes = (texto) => {
+    extrairMencoes(texto, equipe).filter((u) => u.id !== currentUser.id).forEach((u) => {
       createNotification({
-        userId: u.id,
-        tipo: "mencao",
-        autorNome: currentUser.nome,
+        userId: u.id, tipo: "mencao", autorNome: currentUser.nome,
         trecho: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
       }).catch(() => {});
     });
   };
 
+  const onPublicado = (post, texto) => {
+    setPosts((p) => [post, ...p]);
+    setComposer(null);
+    toastSuccess("Publicado!");
+    if (texto) notificarMencoes(texto);
+  };
+
+  // uma reação por pessoa (igual Facebook): clicar na mesma tira, outra troca
+  const reagir = (post, tipo) => {
+    const atual = reacoesDoPost(post);
+    const jaEra = atual[tipo].includes(currentUser.id);
+    const novas = {};
+    REACOES.forEach((r) => { novas[r.id] = atual[r.id].filter((id) => id !== currentUser.id); });
+    if (!jaEra) novas[tipo] = [...novas[tipo], currentUser.id];
+    setPosts((lista) => lista.map((p) => (p.id === post.id ? { ...p, reacoes: novas } : p)));
+    updatePost(post.id, { reacoes: novas }).catch(() => toastError("Não deu pra registrar sua reação. Tente de novo."));
+  };
+
+  const addComentario = (post, texto) => {
+    const comentario = { id: uid(), autorId: currentUser.id, autorNome: currentUser.nome, texto, criadoEm: new Date().toISOString() };
+    const novaLista = [...(post.comentarios || []), comentario];
+    setPosts((lista) => lista.map((p) => (p.id === post.id ? { ...p, comentarios: novaLista } : p)));
+    updatePost(post.id, { comentarios: novaLista }).catch(() => toastError("Não deu pra salvar o comentário. Tente de novo."));
+    notificarMencoes(texto);
+  };
+
   const remove = (id) => {
-    setPosts(posts.filter((p) => p.id !== id));
+    setPosts((lista) => lista.filter((p) => p.id !== id));
     deletePost(id).catch(() => toastError("Não deu pra excluir o post. Tente de novo."));
   };
 
-  const iniciaisUser = currentUser.nome.split(" ").map((p) => p[0]).slice(0, 2).join("");
-  const abrirComposer = (tipoEscolhido) => {
-    setTipo(tipoEscolhido);
-    setComposerOpen(true);
-  };
+  const primeiroNome = currentUser.nome.split(" ")[0];
+  const aniversarios = proximosAniversarios(equipe);
 
   return (
-    <div>
-      <ModuleHeader title="Feed" sub="O que está rolando na equipe hoje" />
+    <div className="relative"
+      onDragOver={(e) => { if (!composer && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setArrastando(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setArrastando(false); }}
+      onDrop={(e) => { if (composer) return; e.preventDefault(); setArrastando(false); setComposer({ arquivos: Array.from(e.dataTransfer.files || []) }); }}>
 
-      <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <button onClick={() => abrirComposer("tarefa")} className="flex items-center gap-3 w-full text-left mb-3">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
-            style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-            {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciaisUser}
+      <div className="mx-auto grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px]" style={{ maxWidth: 1040 }}>
+        <div className="min-w-0 mx-auto w-full" style={{ maxWidth: 680 }}>
+          <ModuleHeader title="Feed" sub="O que está rolando na equipe hoje" />
+
+          <div className="rounded-2xl px-4 pt-4 pb-2 mb-6" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+            <div className="flex items-center gap-3">
+              <FeedAvatar user={currentUser} size={44} />
+              <button onClick={() => setComposer({ arquivos: [] })}
+                className="df-btn-ghost flex-1 text-left rounded-full px-5 py-3 text-[15px]"
+                style={{ background: "#1E1D19", color: C.textFaint, fontFamily: "Inter", border: "1px solid transparent" }}>
+                No que você está pensando, {primeiroNome}?
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1 mt-3 pt-2" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+              <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
+                onChange={(e) => { const arquivos = Array.from(e.target.files || []); e.target.value = ""; if (arquivos.length) setComposer({ arquivos }); }} />
+              <button onClick={() => fileRef.current?.click()} className="df-btn-ghost flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium" style={{ color: C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
+                <span className="text-xl leading-none">🖼️</span>Foto/vídeo
+              </button>
+              <button onClick={() => setComposer({ arquivos: [] })} className="df-btn-ghost flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium" style={{ color: C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
+                <UserPlus size={19} color="#6FA8DC" />Marcar alguém
+              </button>
+              <button onClick={() => setComposer({ arquivos: [] })} className="df-btn-ghost flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium" style={{ color: C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
+                <span className="text-xl leading-none">😊</span>Sentimento
+              </button>
+            </div>
           </div>
-          <div className="flex-1 rounded-full px-4 py-2.5 text-sm" style={{ background: C.bgSoft, border: `1px solid ${C.border}`, color: C.textFaint, fontFamily: "Inter" }}>
-            Começar publicação
-          </div>
-        </button>
-        <div className="flex gap-2 pl-12">
-          {POST_TIPOS.map((t) => (
-            <button key={t.id} onClick={() => abrirComposer(t.id)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-              {t.label}
-            </button>
+
+          {error && <div className="text-sm mb-4 rounded-xl px-4 py-3" style={{ color: C.amber, background: "rgba(217,164,65,0.08)", border: "1px solid rgba(217,164,65,0.3)", fontFamily: "Inter" }}>{error}</div>}
+
+          {loading && [0, 1].map((i) => (
+            <div key={i} className="rounded-2xl p-5 mb-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-full df-glow" style={{ background: "#26241F" }} />
+                <div className="flex-1"><div className="h-3 w-40 rounded df-glow mb-2" style={{ background: "#26241F" }} /><div className="h-2.5 w-24 rounded df-glow" style={{ background: "#26241F" }} /></div>
+              </div>
+              <div className="h-3 w-full rounded df-glow mb-2" style={{ background: "#26241F" }} />
+              <div className="h-3 w-2/3 rounded df-glow" style={{ background: "#26241F" }} />
+            </div>
+          ))}
+          {!loading && posts.length === 0 && !error && (
+            <div className="rounded-2xl p-10 text-center" style={{ background: C.surface, border: `1px dashed ${C.border}` }}>
+              <div className="text-4xl mb-3">🎬</div>
+              <div className="text-lg font-semibold mb-1" style={{ color: C.text, fontFamily: "Fraunces" }}>Nada por aqui ainda</div>
+              <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Seja o primeiro a publicar algo pra equipe.</div>
+            </div>
+          )}
+          {posts.map((post) => (
+            <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
+              onReagir={reagir} onAddComentario={addComentario} onDelete={remove} />
           ))}
         </div>
+
+        <aside className="hidden xl:block">
+          <div className="sticky" style={{ top: 72 }}>
+            {aniversarios.length > 0 && (
+              <div className="rounded-2xl p-4 mb-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <div className="text-sm font-semibold mb-3" style={{ color: C.textDim, fontFamily: "Inter" }}>Aniversários</div>
+                {aniversarios.map(({ u, dias, prox }) => (
+                  <div key={u.id} className="flex items-center gap-3 py-1.5">
+                    <span className="text-2xl">🎁</span>
+                    <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>
+                      <b>{u.nome.split(" ")[0]}</b>{" "}
+                      <span style={{ color: C.textDim }}>
+                        {dias === 0 ? "faz aniversário hoje!" : dias === 1 ? "faz aniversário amanhã" : `em ${prox.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <div className="text-sm font-semibold mb-2" style={{ color: C.textDim, fontFamily: "Inter" }}>Equipe</div>
+              {equipe.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 px-2 py-2 rounded-xl df-btn-ghost" style={{ border: "1px solid transparent" }}>
+                  <FeedAvatar user={u} size={36} ring={u.id === currentUser.id} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{u.nome}</div>
+                    <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>{u.papel}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
 
-      {error && <div className="text-xs mb-4" style={{ color: C.amber, fontFamily: "Inter" }}>{error}</div>}
-
-      {loading && <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Carregando feed...</div>}
-      {!loading && posts.length === 0 && !error && (
-        <div className="text-sm" style={{ color: C.textFaint, fontFamily: "Inter" }}>Nenhum post ainda. Seja o primeiro a postar!</div>
+      {arrastando && !composer && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none df-fade-in" style={{ background: "rgba(10,10,9,0.8)" }}>
+          <div className="rounded-3xl px-16 py-12 flex flex-col items-center gap-3" style={{ border: `2px dashed ${C.gold}`, color: C.goldBright, fontFamily: "Inter" }}>
+            <Upload size={40} /><div className="text-xl font-semibold">Solte pra criar uma publicação</div>
+          </div>
+        </div>
       )}
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
-          onToggleReacao={toggleReacao} onAddComentario={addComentario} onDelete={remove} />
-      ))}
 
-      {composerOpen && (
-        <Modal title="Criar publicação" onClose={() => { setComposerOpen(false); resetComposer(); }}>
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
-              style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-              {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciaisUser}
-            </div>
-            <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>{currentUser.nome}</div>
-          </div>
-
-          <div className="flex gap-2 mb-3">
-            {POST_TIPOS.map((t) => (
-              <button key={t.id} onClick={() => setTipo(t.id)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{
-                  background: tipo === t.id ? C.gold : "transparent",
-                  color: tipo === t.id ? "#141209" : C.textDim,
-                  border: `1px solid ${tipo === t.id ? C.gold : C.border}`, fontFamily: "Inter",
-                }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {(tipo === "tarefa" || tipo === "frase") && (
-            <textarea autoFocus style={{ ...inputStyle, minHeight: 90 }}
-              placeholder={tipo === "tarefa" ? "O que você vai fazer hoje?" : "Escreva a frase..."}
-              value={texto} onChange={(e) => setTexto(e.target.value)} />
-          )}
-          {tipo === "frase" && (
-            <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Autoria (opcional)"
-              value={autoria} onChange={(e) => setAutoria(e.target.value)} />
-          )}
-          {tipo === "foto" && (
-            <div>
-              <input type="file" accept="image/*" onChange={handleFile}
-                className="text-sm" style={{ color: C.textDim, fontFamily: "Inter" }} />
-              {uploading && <div className="text-xs mt-1" style={{ color: C.textFaint }}>Enviando...</div>}
-              {fotoUrl && !uploading && (
-                <img src={fotoUrl} alt="" className="rounded-lg mt-2 w-full" style={{ maxHeight: 260, objectFit: "cover" }} />
-              )}
-              <input style={{ ...inputStyle, marginTop: 8 }} placeholder="Legenda (opcional)"
-                value={descricao} onChange={(e) => setDescricao(e.target.value)} />
-            </div>
-          )}
-
-          <div className="flex justify-end mt-4">
-            <PrimaryBtn onClick={publicar} disabled={!podePostar || posting}>
-              <Plus size={16} />{posting ? "Publicando..." : "Postar"}
-            </PrimaryBtn>
-          </div>
-        </Modal>
+      {composer && (
+        <ComposerModal currentUser={currentUser} equipe={equipe} arquivosIniciais={composer.arquivos}
+          onClose={() => setComposer(null)} onPublicado={onPublicado} />
       )}
     </div>
   );
 }
+
 
 /* ---------------------------------------------------------
    ORÇAMENTOS
@@ -3851,55 +4415,104 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
 
   return (
     <div>
-      <ModuleHeader title="Acesso" sub={`${equipe.length} pessoas com login no DieselFilms OS`}
-        right={canManage && <PrimaryBtn onClick={startNew}><Plus size={16} />Cadastrar funcionário</PrimaryBtn>} />
+      <ModuleHeader title="Acesso" sub="Quem entra no DieselFilms OS e o que cada pessoa pode ver"
+        right={canManage && <PrimaryBtn onClick={startNew}><UserPlus size={17} />Cadastrar funcionário</PrimaryBtn>} />
 
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-        {equipe.map((m, idx) => (
-          <div key={m.id} className="flex items-center justify-between px-5 py-4 flex-wrap gap-3"
-            style={{ background: C.surface, borderTop: idx ? `1px solid ${C.borderSoft}` : "none" }}>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0"
-                style={{ background: C.goldDim, color: C.text, fontFamily: "Inter" }}>
-                {m.fotoUrl ? <img src={m.fotoUrl} alt="" className="w-full h-full object-cover" /> : m.nome.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-              </div>
-              <div>
-                <div className="text-sm" style={{ color: C.text, fontFamily: "Inter" }}>
-                  {m.nome} {m.id === currentUserId && <span style={{ color: C.textFaint }}>(você)</span>}
+      <div className="flex gap-4 flex-wrap mb-6">
+        <StatCard icon={Users} label="Pessoas na equipe" value={equipe.length} />
+        <StatCard icon={ShieldCheck} label="Acesso total" value={equipe.filter((m) => CARGOS_GESTAO.includes(m.papel)).length} sub="Dono, Sócio e Admin veem tudo" />
+        <StatCard icon={KeyRound} label="Acesso limitado" value={equipe.filter((m) => !CARGOS_GESTAO.includes(m.papel)).length} sub="Só os módulos liberados" />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {equipe.map((m, idx) => {
+          const voce = m.id === currentUserId;
+          const iniciais = m.nome.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+          return (
+            <div key={m.id} className={`df-card df-fade-up rounded-2xl p-5 flex flex-col ${canManage ? "cursor-pointer" : ""}`}
+              onClick={() => canManage && startEdit(m)}
+              style={{
+                animationDelay: `${idx * 0.05}s`,
+                background: `linear-gradient(180deg, #1B1A17, ${C.surface})`,
+                border: `1px solid ${voce ? "rgba(201,162,39,0.4)" : C.border}`,
+              }}>
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center text-base font-semibold overflow-hidden flex-shrink-0"
+                  style={{
+                    background: voce ? C.gold : C.goldDim, color: voce ? "#141209" : C.text, fontFamily: "Inter",
+                    boxShadow: voce ? `0 0 0 3px ${C.bg}, 0 0 0 5px rgba(201,162,39,0.55)` : "none",
+                  }}>
+                  {m.fotoUrl ? <img src={m.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
                 </div>
-                <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{m.email}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>
-                  {m.modulos.map((id) => NAV.find((n) => n.id === id)?.label).filter(Boolean).join(", ")}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg font-semibold leading-tight" style={{ color: C.text, fontFamily: "Fraunces" }}>{m.nome}</span>
+                    {voce && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(201,162,39,0.14)", color: C.goldBright, fontFamily: "Inter" }}>você</span>}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm mt-1" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                    <Mail size={13} style={{ flexShrink: 0 }} /><span className="truncate">{m.email}</span>
+                  </div>
+                  <div className="mt-2.5"><Pill tone={papelTone[m.papel] || "neutral"}>{m.papel}</Pill></div>
                 </div>
               </div>
+
+              <div className="mt-4 pt-4 flex flex-wrap gap-1.5 flex-1 content-start" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+                {NAV.filter((n) => m.modulos.includes(n.id)).map((n) => {
+                  const Icon = n.icon;
+                  return (
+                    <span key={n.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+                      style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${C.borderSoft}`, color: C.textDim, fontFamily: "Inter" }}>
+                      <Icon size={12} />{n.label}
+                    </span>
+                  );
+                })}
+                {m.modulos.length === 0 && <span className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Nenhum módulo liberado</span>}
+              </div>
+
+              {canManage && (
+                <div className="mt-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => startEdit(m)}
+                    className="df-btn-ghost flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium"
+                    style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                    <Pencil size={14} />Editar
+                  </button>
+                  {!voce && (
+                    <button onClick={() => { if (window.confirm(`Remover o acesso de ${m.nome}?`)) remove(m.id); }} title="Remover acesso"
+                      className="df-btn-ghost p-2.5 rounded-xl" style={{ color: C.textFaint, border: `1px solid ${C.border}` }}>
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <Pill tone={papelTone[m.papel] || "neutral"}>{m.papel}</Pill>
-              {canManage && <IconBtn onClick={() => startEdit(m)} title="Editar"><Pencil size={14} /></IconBtn>}
-              {canManage && m.id !== currentUserId && <IconBtn onClick={() => remove(m.id)} title="Remover"><Trash2 size={14} /></IconBtn>}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {canManage && (
-        <div className="mt-6 rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-sm font-medium mb-1" style={{ color: C.text, fontFamily: "Inter" }}>Backup dos dados</div>
-          <p className="text-xs mb-4" style={{ color: C.textFaint, fontFamily: "Inter" }}>
-            Baixa um arquivo com os dados de Clientes, Leads, Demandas, Financeiro, Contratos, Acesso, Orçamentos e Precificação.
-            A senha de cada pessoa nunca sai do servidor, nem em formato protegido — não é incluída no arquivo. Ao restaurar, quem já existir na equipe mantém a senha atual normalmente.
-          </p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <PrimaryBtn onClick={exportarBackup} disabled={backupBusy}>
-              <Download size={16} />{backupBusy ? "Gerando..." : "Baixar backup"}
-            </PrimaryBtn>
-            <label className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer"
-              style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-              <input type="file" accept="application/json" onChange={handleRestoreFile} className="hidden" />
-              Restaurar backup...
-            </label>
+        <div className="mt-8 rounded-2xl p-6 flex items-start gap-5 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(201,162,39,0.1)", color: C.goldBright, border: "1px solid rgba(201,162,39,0.22)" }}>
+            <Download size={20} />
           </div>
-          {backupError && <div className="text-xs mt-3" style={{ color: C.red, fontFamily: "Inter" }}>{backupError}</div>}
+          <div className="flex-1 min-w-[260px]">
+            <div className="text-base font-semibold mb-1" style={{ color: C.text, fontFamily: "Inter" }}>Backup dos dados</div>
+            <p className="text-sm mb-4" style={{ color: C.textFaint, fontFamily: "Inter", lineHeight: 1.55 }}>
+              Baixa um arquivo com Clientes, Leads, Demandas, Financeiro, Contratos, Acesso, Orçamentos e Precificação.
+              As senhas nunca vão no arquivo — ao restaurar, cada pessoa continua com a senha atual.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <PrimaryBtn onClick={exportarBackup} disabled={backupBusy}>
+                {backupBusy ? <Loader2 size={16} className="df-spin" /> : <Download size={16} />}{backupBusy ? "Gerando..." : "Baixar backup"}
+              </PrimaryBtn>
+              <label className="df-btn-ghost flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium cursor-pointer"
+                style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+                <input type="file" accept="application/json" onChange={handleRestoreFile} className="hidden" />
+                <Upload size={16} />Restaurar backup...
+              </label>
+            </div>
+            {backupError && <div className="text-sm mt-3" style={{ color: C.red, fontFamily: "Inter" }}>{backupError}</div>}
+          </div>
         </div>
       )}
 
@@ -3932,29 +4545,88 @@ function EquipeModule({ equipe, setEquipe, currentUserId, currentUserPapel, logA
       )}
 
       {open && (
-        <Modal title={editingId ? "Editar funcionário" : "Cadastrar funcionário"} onClose={() => setOpen(false)}>
-          <Field label="Nome"><input style={inputStyle} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
-          <Field label="E-mail de login"><input type="email" style={inputStyle} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label={editingId ? "Nova senha (deixe em branco para manter)" : "Senha"}>
-            <input type="text" style={inputStyle} value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} placeholder={editingId ? "••••••••" : "defina uma senha inicial"} />
-          </Field>
-          <Field label="Cargo">
-            <select style={inputStyle} value={form.papel} onChange={(e) => setForm({ ...form, papel: e.target.value })}>
-              {PAPEIS.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </Field>
-          <Field label="Módulos visíveis para esse cargo">
-            <div className="flex flex-col gap-2 mt-1">
-              {NAV.map((n) => (
-                <label key={n.id} className="flex items-center gap-2 text-sm" style={{ color: C.textDim, fontFamily: "Inter" }}>
-                  <input type="checkbox" checked={form.modulos.includes(n.id)} onChange={() => toggleModulo(n.id)} />
-                  {n.label}
-                </label>
-              ))}
+        <Modal medium icon={editingId ? Pencil : UserPlus}
+          title={editingId ? "Editar funcionário" : "Cadastrar funcionário"}
+          sub={editingId ? "Dados de login, cargo e o que essa pessoa pode ver" : "Crie o login e escolha o que essa pessoa pode ver"}
+          onClose={() => setOpen(false)}>
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <Field label="Nome"><input style={inputStyle} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Nome completo" /></Field>
+            <Field label="E-mail de login"><input type="email" style={inputStyle} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="nome@dieselfilms.com" /></Field>
+          </div>
+
+          <div className="mb-5">
+            <span className="block text-[13px] font-medium mb-1.5" style={{ color: C.textDim, fontFamily: "Inter" }}>
+              {editingId ? "Nova senha" : "Senha"}
+              {editingId && <span style={{ color: C.textFaint, fontWeight: 400 }}> — deixe em branco pra manter a atual</span>}
+            </span>
+            <PasswordInput value={form.senha} onChange={(v) => setForm({ ...form, senha: v })} autoComplete="new-password"
+              placeholder={editingId ? "Digite só se quiser trocar" : "Mínimo de 6 caracteres"} comMedidor comGerador />
+          </div>
+
+          <div className="mb-5">
+            <span className="block text-[13px] font-medium mb-2" style={{ color: C.textDim, fontFamily: "Inter" }}>Cargo</span>
+            <div className="flex flex-wrap gap-2">
+              {PAPEIS.map((p) => {
+                const sel = form.papel === p;
+                return (
+                  <button key={p} type="button" onClick={() => setForm({ ...form, papel: p })}
+                    className="df-btn-ghost px-4 py-2 rounded-xl text-sm font-medium"
+                    style={{
+                      fontFamily: "Inter",
+                      background: sel ? "rgba(201,162,39,0.16)" : "transparent",
+                      color: sel ? C.goldBright : C.textDim,
+                      border: `1px solid ${sel ? "rgba(201,162,39,0.6)" : C.border}`,
+                    }}>
+                    {p}
+                  </button>
+                );
+              })}
             </div>
-          </Field>
-          <div className="mt-2">
-            <PrimaryBtn onClick={save}><Plus size={16} />{editingId ? "Salvar alterações" : "Cadastrar"}</PrimaryBtn>
+            <p className="text-xs mt-2" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+              {CARGOS_GESTAO.includes(form.papel)
+                ? "Dono, Sócio e Admin podem editar tudo e gerenciar a equipe."
+                : "Esse cargo só mexe nos módulos marcados abaixo."}
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-medium" style={{ color: C.textDim, fontFamily: "Inter" }}>
+                Módulos visíveis <span style={{ color: C.textFaint, fontWeight: 400 }}>({form.modulos.length} de {NAV.length})</span>
+              </span>
+              <button type="button" className="text-xs font-medium" style={{ color: C.goldBright, fontFamily: "Inter" }}
+                onClick={() => setForm({ ...form, modulos: form.modulos.length === NAV.length ? [] : NAV.map((n) => n.id) })}>
+                {form.modulos.length === NAV.length ? "Desmarcar todos" : "Marcar todos"}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {NAV.map((n) => {
+                const on = form.modulos.includes(n.id);
+                const Icon = n.icon;
+                return (
+                  <button key={n.id} type="button" onClick={() => toggleModulo(n.id)} aria-pressed={on}
+                    className="df-btn-ghost flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-left"
+                    style={{
+                      fontFamily: "Inter",
+                      background: on ? "rgba(201,162,39,0.1)" : "rgba(255,255,255,0.02)",
+                      color: on ? C.text : C.textFaint,
+                      border: `1px solid ${on ? "rgba(201,162,39,0.45)" : C.borderSoft}`,
+                    }}>
+                    <Icon size={16} color={on ? C.goldBright : C.textFaint} />
+                    <span className="flex-1 truncate">{n.label}</span>
+                    <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                      style={{ background: on ? C.gold : "transparent", border: `1px solid ${on ? C.gold : C.border}` }}>
+                      {on && <Check size={11} color="#141209" strokeWidth={3} />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+            <GhostBtn onClick={() => setOpen(false)}>Cancelar</GhostBtn>
+            <PrimaryBtn onClick={save}><Check size={16} />{editingId ? "Salvar alterações" : "Cadastrar"}</PrimaryBtn>
           </div>
         </Modal>
       )}
@@ -4082,7 +4754,7 @@ export default function DieselFilmsOS() {
         <style>{FONTS}</style>
         <ToastHost />
         <MobileTopBar user={currentUser} onLogout={logout} />
-        <div className="px-4 py-5" style={{ paddingBottom: 90 }}>
+        <div key={activeSafe} className="df-fade-up px-4 py-5" style={{ paddingBottom: 90 }}>
           {modules}
         </div>
         <MobileBottomNav active={activeSafe} setActive={setActive} allowedNav={allowedNav} />
@@ -4103,7 +4775,7 @@ export default function DieselFilmsOS() {
         <div className="sticky top-0 z-30 flex justify-end px-8 pt-5 pb-1" style={{ background: "linear-gradient(180deg, rgba(10,10,9,0.9), transparent)" }}>
           <NotificationBell currentUser={currentUser} />
         </div>
-        <div className="max-w-5xl mx-auto px-8 pt-1 pb-8">
+        <div key={activeSafe} className="df-fade-up mx-auto px-10 pt-1 pb-12" style={{ maxWidth: 1360 }}>
           {modules}
         </div>
       </div>

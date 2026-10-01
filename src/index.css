@@ -7,6 +7,65 @@ html, body, #root {
   margin: 0;
 }
 
+/* Telas grandes: tudo um pouco maior (o Tailwind usa rem). */
+@media (min-width: 1024px) {
+  html { font-size: 17px; }
+}
+
+/* ---------- movimento ---------- */
+@keyframes dfFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes dfScaleIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes dfFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dfSpin { to { transform: rotate(360deg); } }
+@keyframes dfShake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
+@keyframes dfGlow { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.7; } }
+
+.df-fade-up { animation: dfFadeUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.df-scale-in { animation: dfScaleIn 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.df-fade-in { animation: dfFadeIn 0.2s ease both; }
+.df-spin { animation: dfSpin 0.8s linear infinite; }
+.df-shake { animation: dfShake 0.45s ease both; }
+.df-glow { animation: dfGlow 5s ease-in-out infinite; }
+
+/* ---------- campos ---------- */
+input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
+input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { border-color: #3a352e !important; }
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(201, 162, 39, 0.75) !important;
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.14);
+}
+input[type="checkbox"] { accent-color: #C9A227; width: 15px; height: 15px; }
+
+/* ---------- botões e cartões ---------- */
+.df-btn-primary {
+  background: linear-gradient(180deg, #DDB743, #C29A1F);
+  box-shadow: 0 6px 18px rgba(201, 162, 39, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.df-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 26px rgba(201, 162, 39, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.df-btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+
+.df-btn-ghost { transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.df-btn-ghost:hover { background: rgba(255, 255, 255, 0.05); color: #F3EFE4 !important; border-color: #3a352e !important; }
+
+.df-card { transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
+.df-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(201, 162, 39, 0.35) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.38);
+}
+
+.df-nav { transition: background 0.15s ease, color 0.15s ease, padding 0.15s ease; }
+.df-nav:not(.is-active):hover { background: rgba(255, 255, 255, 0.04); color: #F3EFE4 !important; padding-left: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
 .thin-scroll {
   scrollbar-width: thin;
   scrollbar-color: #2A2723 #161513;

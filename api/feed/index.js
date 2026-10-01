@@ -2,10 +2,22 @@ import { kv } from "@vercel/kv";
 import { requireSession, loadEquipeMember } from "../_lib/session.js";
 
 const KEY = "feed_posts";
-const TIPOS = ["tarefa", "frase", "foto"];
+// "post" é o formato atual (texto + fotos/vídeos); os outros ficam pra ler
+// os posts antigos.
+const TIPOS = ["post", "tarefa", "frase", "foto"];
+const MAX_MIDIAS = 10;
 
 function str(v, max) {
   return typeof v === "string" ? v.slice(0, max) : "";
+}
+
+// só aceita mídia que já subiu pro Vercel Blob (https) com tipo conhecido
+function midias(v) {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((m) => m && typeof m.url === "string" && /^https:///.test(m.url) && ["imagem", "video"].includes(m.tipo))
+    .slice(0, MAX_MIDIAS)
+    .map((m) => ({ url: m.url.slice(0, 2000), tipo: m.tipo }));
 }
 
 export default async function handler(req, res) {
@@ -20,6 +32,10 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const body = req.body || {};
+    if (body.tipo === "post" && !str(body.texto, 5000).trim() && midias(body.midias).length === 0) {
+      res.status(400).json({ error: "Escreva algo ou adicione uma foto/vídeo." });
+      return;
+    }
     if (!TIPOS.includes(body.tipo)) {
       res.status(400).json({ error: "Tipo de post inválido." });
       return;
@@ -43,8 +59,9 @@ export default async function handler(req, res) {
       autoria: str(body.autoria, 200),
       fotoUrl: str(body.fotoUrl, 2000),
       descricao: str(body.descricao, 1000),
+      midias: midias(body.midias),
       criadoEm: now,
-      reacoes: { visto: [], trabalhando: [] },
+      reacoes: { curtir: [], amei: [], visto: [], trabalhando: [] },
       comentarios: [],
     };
     const updated = [post, ...posts];
