@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -1098,70 +1098,116 @@ function SidebarProfileCard({ currentUser, equipe, setEquipe }) {
   };
 
   const meusPosts = posts.filter((p) => p.autorId === currentUser.id);
-  const reacoesRecebidas = meusPosts.reduce((s, p) => s + p.reacoes.visto.length + p.reacoes.trabalhando.length, 0);
+  const reacoesRecebidas = meusPosts.reduce((s, p) => s + Object.values(p.reacoes || {}).reduce((t, l) => t + (Array.isArray(l) ? l.length : 0), 0), 0);
 
   return (
-    <div className="mx-4 mt-5 mb-2 p-4 rounded-xl flex flex-col items-center text-center"
-      style={{ border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)" }}>
-      <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden mb-2"
-        style={{ background: C.gold, color: "#141209", fontFamily: "Inter" }}>
-        {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+    <div className="ml-7 mr-4 mb-1 rounded-2xl overflow-hidden relative"
+      style={{ background: "linear-gradient(160deg, rgba(201,162,39,0.14), rgba(255,255,255,0.02) 55%)", border: "1px solid rgba(201,162,39,0.22)" }}>
+      <div className="flex items-center gap-3 p-3 pr-10">
+        <div className="relative flex-shrink-0">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden"
+            style={{ background: C.gold, color: "#141209", fontFamily: "Inter", boxShadow: `0 0 0 2px ${C.bgSoft}, 0 0 0 3.5px ${C.gold}` }}>
+            {currentUser.fotoUrl ? <img src={currentUser.fotoUrl} alt="" className="w-full h-full object-cover" /> : iniciais}
+          </div>
+          <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full" style={{ background: C.green, border: `2px solid ${C.bgSoft}` }} title="Online" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold leading-tight" style={{ color: C.text, fontFamily: "Fraunces" }}>{currentUser.nome}</div>
+          <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md"
+            style={{ background: "rgba(201,162,39,0.16)", color: C.goldBright, fontFamily: "Inter" }}>{currentUser.papel}</span>
+        </div>
+        <button onClick={() => setProfileOpen(true)} title="Editar perfil" aria-label="Editar perfil"
+          className="df-btn-ghost absolute top-2.5 right-2.5 p-1.5 rounded-lg" style={{ color: C.textDim, border: `1px solid ${C.border}` }}>
+          <Pencil size={13} />
+        </button>
       </div>
-      <div className="text-sm font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{currentUser.nome}</div>
-      <div className="text-[11px] mt-0.5" style={{ color: C.textDim, fontFamily: "Inter" }}>{currentUser.papel} · DieselFilms</div>
-      <button onClick={() => setProfileOpen(true)} className="mt-2 px-3 py-1 rounded-full text-[11px]"
-        style={{ border: `1px dashed ${C.border}`, color: C.textDim, fontFamily: "Inter" }}>
-        + Editar perfil
-      </button>
-      <div className="mt-3 pt-3 w-full flex items-center justify-center gap-3 text-[11px]" style={{ borderTop: `1px solid ${C.borderSoft}`, fontFamily: "Inter" }}>
-        <span style={{ color: C.textDim }}>
-          <span style={{ color: C.goldBright, fontWeight: 600 }}>{meusPosts.length}</span> publicações
-        </span>
-        <span style={{ color: C.textFaint }}>·</span>
-        <span style={{ color: C.textDim }}>
-          <span style={{ color: C.goldBright, fontWeight: 600 }}>{reacoesRecebidas}</span> reações
-        </span>
+      <div className="grid grid-cols-2 text-center" style={{ borderTop: "1px solid rgba(201,162,39,0.14)", fontFamily: "Inter" }}>
+        <div className="py-2" style={{ borderRight: "1px solid rgba(201,162,39,0.14)" }}>
+          <div className="text-base font-semibold leading-none" style={{ color: C.text }}>{meusPosts.length}</div>
+          <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.textFaint }}>Publicações</div>
+        </div>
+        <div className="py-2">
+          <div className="text-base font-semibold leading-none" style={{ color: C.text }}>{reacoesRecebidas}</div>
+          <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.textFaint }}>Reações</div>
+        </div>
       </div>
       {profileOpen && <ProfileModal user={currentUser} onSave={salvarPerfil} onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }
 
+// grupos do menu lateral (só aparece o que a pessoa tem liberado)
+const NAV_GRUPOS = [
+  { titulo: "Principal", ids: ["feed", "dashboard"] },
+  { titulo: "Comercial", ids: ["leads", "orcamentos", "contratos", "clientes"] },
+  { titulo: "Operação", ids: ["demandas"] },
+  { titulo: "Gestão", ids: ["financeiro", "equipe"] },
+];
+
 function Sidebar({ active, setActive, user, allowedNav, onLogout, equipe, setEquipe }) {
+  const grupos = NAV_GRUPOS
+    .map((g) => ({ ...g, itens: g.ids.map((id) => allowedNav.find((n) => n.id === id)).filter(Boolean) }))
+    .filter((g) => g.itens.length);
+  const soltos = allowedNav.filter((n) => !NAV_GRUPOS.some((g) => g.ids.includes(n.id)));
+  if (soltos.length) grupos.push({ titulo: "Outros", itens: soltos });
+
   return (
     <div className="relative flex flex-col h-full" style={{
-      width: 264, flexShrink: 0, borderRight: `1px solid ${C.borderSoft}`,
-      backgroundColor: C.bgSoft,
-      backgroundImage: `linear-gradient(180deg, rgba(17,17,16,0.85), rgba(17,17,16,0.97)), url(${BG_IMG})`,
-      backgroundSize: "cover", backgroundPosition: "top",
+      width: 268, flexShrink: 0, borderRight: `1px solid ${C.borderSoft}`,
+      background: "linear-gradient(180deg, #13120F 0%, #0D0C0A 100%)",
     }}>
       <Sprockets />
 
+      <div className="flex items-center gap-3 pl-8 pr-5 pt-5 pb-4">
+        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 46, height: "auto", filter: "drop-shadow(0 4px 14px rgba(201,162,39,0.35))" }} />
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold leading-tight" style={{ color: C.text, fontFamily: "Fraunces" }}>DieselFilms</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] mt-0.5" style={{ color: C.goldBright, fontFamily: "Inter" }}>Sistema de gestão</div>
+        </div>
+      </div>
+
       <SidebarProfileCard currentUser={user} equipe={equipe} setEquipe={setEquipe} />
 
-      <nav className="flex-1 pl-8 pr-4 pt-5 flex flex-col gap-1 overflow-y-auto thin-scroll">
-        {allowedNav.map((item) => {
-          const isActive = active === item.id;
-          const Icon = item.icon;
-          return (
-            <button key={item.id} onClick={() => setActive(item.id)}
-              className={`df-nav ${isActive ? "is-active" : ""} flex items-center gap-3 px-3.5 py-3 rounded-xl text-[15px] text-left`}
-              style={{
-                background: isActive ? "linear-gradient(90deg, rgba(201,162,39,0.18), rgba(201,162,39,0.04))" : "transparent",
-                color: isActive ? C.goldBright : C.textDim,
-                fontFamily: "Inter", fontWeight: isActive ? 600 : 500,
-                borderLeft: isActive ? `2px solid ${C.gold}` : "2px solid transparent",
-              }}>
-              <Icon size={18} />
-              {item.label}
-            </button>
-          );
-        })}
+      <nav className="flex-1 min-h-0 pl-8 pr-4 pt-1.5 pb-3 flex flex-col overflow-y-auto thin-scroll">
+        {grupos.map((g) => (
+          <div key={g.titulo} className="mt-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] px-3 mb-1.5" style={{ color: C.textFaint, fontFamily: "Inter" }}>{g.titulo}</div>
+            <div className="flex flex-col gap-0.5">
+              {g.itens.map((item) => {
+                const isActive = active === item.id;
+                const Icon = item.icon;
+                return (
+                  <button key={item.id} onClick={() => setActive(item.id)}
+                    className={`df-nav ${isActive ? "is-active" : ""} relative flex items-center gap-3 px-2.5 py-1.5 rounded-xl text-[14.5px] text-left`}
+                    style={{
+                      background: isActive ? "linear-gradient(90deg, rgba(201,162,39,0.2), rgba(201,162,39,0.03))" : "transparent",
+                      color: isActive ? C.goldBright : C.textDim,
+                      fontFamily: "Inter", fontWeight: isActive ? 600 : 500,
+                    }}>
+                    {isActive && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-full" style={{ background: C.gold, boxShadow: `0 0 12px ${C.gold}` }} />}
+                    <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
+                      style={{ background: isActive ? C.gold : "rgba(255,255,255,0.04)", color: isActive ? "#141209" : C.textDim, border: `1px solid ${isActive ? C.gold : C.borderSoft}` }}>
+                      <Icon size={15} />
+                    </span>
+                    <span className="flex-1">{item.label}</span>
+                    {isActive && <ChevronRight size={15} style={{ opacity: 0.7 }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      <div className="px-5 py-4 flex flex-col items-center text-center" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-        <img src={LOGO_IMG} alt="Diesel Films" style={{ width: 44, height: "auto", opacity: 0.6 }} />
-        <button onClick={onLogout} className="mt-2 text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Sair</button>
+      <div className="mx-4 mb-4 ml-8 mt-1 p-2 rounded-xl flex items-center justify-between gap-2" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${C.borderSoft}` }}>
+        <div className="text-[11px] pl-1.5 leading-tight" style={{ color: C.textFaint, fontFamily: "Inter" }}>
+          DieselFilms OS<br /><span style={{ color: C.textDim }}>Produções Audiovisuais</span>
+        </div>
+        <button onClick={onLogout} title="Sair da conta"
+          className="df-btn-ghost flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
+          style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
+          <LogOut size={14} />Sair
+        </button>
       </div>
     </div>
   );
