@@ -613,7 +613,7 @@ function KanbanColumn({ id, label, tone, count, isOver, emptyLabel, children }) 
   const { setNodeRef } = useDroppable({ id });
   const cor = TONE_HEX[tone] || TONE_HEX.neutral;
   return (
-    <div className="flex-shrink-0 rounded-2xl flex flex-col" style={{ width: 290, background: "rgba(255,255,255,0.018)", border: `1px solid ${C.borderSoft}` }}>
+    <div className="flex-shrink-0 rounded-2xl flex flex-col min-h-0" style={{ width: 290, background: "rgba(255,255,255,0.018)", border: `1px solid ${C.borderSoft}` }}>
       <div className="flex items-center justify-between px-3.5 pt-3.5 pb-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: cor, boxShadow: `0 0 10px ${cor}88` }} />
@@ -621,7 +621,7 @@ function KanbanColumn({ id, label, tone, count, isOver, emptyLabel, children }) 
         </div>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${cor}22`, color: cor, fontFamily: "Inter" }}>{count}</span>
       </div>
-      <div ref={setNodeRef} className="flex flex-col gap-2.5 rounded-xl mx-2 mb-2 flex-1"
+      <div ref={setNodeRef} className="flex flex-col gap-2.5 rounded-xl mx-2 mb-2 flex-1 min-h-0 overflow-y-auto thin-scroll"
         style={{ minHeight: 90, padding: 4, background: isOver ? "rgba(201,162,39,0.08)" : "transparent", outline: isOver ? `1px dashed ${C.gold}` : "none", transition: "background 0.12s" }}>
         {count === 0 && (
           <div className="text-xs rounded-xl px-3 py-6 text-center flex flex-col items-center gap-1.5" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>
@@ -646,6 +646,24 @@ function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, o
   const grouped = columns.map((col) => ({ ...col, items: items.filter((it) => getColumnId(it) === col.id) }));
   const activeItem = activeId != null ? items.find((it) => getId(it) === activeId) : null;
 
+  // estica o quadro até o fim da tela, pra barra de rolar pro lado ficar lá
+  // embaixo (como no Trello) mesmo com poucos cards
+  const boardRef = useRef(null);
+  const [altura, setAltura] = useState(null);
+  useEffect(() => {
+    const medir = () => {
+      const el = boardRef.current;
+      if (!el) return;
+      const mobile = window.innerWidth < 768;
+      const topo = el.getBoundingClientRect().top + (el.closest(".overflow-y-auto")?.scrollTop || window.scrollY || 0);
+      setAltura(Math.max(360, window.innerHeight - topo - (mobile ? 92 : 28)));
+    };
+    medir();
+    const t = setTimeout(medir, 450);
+    window.addEventListener("resize", medir);
+    return () => { clearTimeout(t); window.removeEventListener("resize", medir); };
+  }, []);
+
   return (
     <DndContext sensors={sensors}
       onDragStart={(e) => setActiveId(e.active.id)}
@@ -658,7 +676,7 @@ function KanbanBoard({ columns, items, getColumnId, getId, onMove, renderCard, o
         if (item && getColumnId(item) !== over.id) onMove(item, over.id);
       }}
       onDragCancel={() => { setActiveId(null); setOverId(null); }}>
-      <div className="flex gap-4 overflow-x-auto thin-scroll pb-3 items-stretch">
+      <div ref={boardRef} className="flex gap-4 overflow-x-auto overflow-y-hidden thin-scroll pb-3 items-stretch" style={{ height: altura || undefined }}>
         {grouped.map((col) => (
           <KanbanColumn key={col.id} id={col.id} label={col.label} tone={col.tone} count={col.items.length} isOver={overId === col.id} emptyLabel={emptyLabel}>
             {col.items.map((item) => (
@@ -1459,7 +1477,7 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
 function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity = () => {} }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", client: "", priority: "Normal", status: "A iniciar", date: "", responsavelId: "" });
-  const [view, setView] = useState("lista");
+  const [view, setView] = useState("quadro");
   const [clienteFiltro, setClienteFiltro] = useState("");
   const groups = ["A iniciar", "Criando", "Enviar pra aprovacao", "Em aprovacao", "Alteracao", "Entregue"];
 
@@ -1518,8 +1536,8 @@ function DemandasModule({ demandas, setDemandas, clientes, equipe, logActivity =
           </select>
         </div>
         <ViewToggle view={view} setView={setView} options={[
-          { id: "lista", icon: List, title: "Lista" },
           { id: "quadro", icon: LayoutGrid, title: "Quadro" },
+          { id: "lista", icon: List, title: "Lista" },
         ]} />
       </div>
 
@@ -4434,7 +4452,7 @@ function ClientesModule({ clientes, setClientes, equipe = [], contratos = [], lo
   const [filter, setFilter] = useState("Todos");
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("relevancia");
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("grid");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyClienteForm());
