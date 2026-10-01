@@ -368,16 +368,16 @@ const TONE_HEX = { gold: "#C9A227", green: "#6FBF8B", red: "#D2685B", blue: "#7B
 function StatCard({ icon: Icon, label, value, sub, subColor, tone = "gold" }) {
   const cor = TONE_HEX[tone] || TONE_HEX.gold;
   return (
-    <div className="df-card relative overflow-hidden rounded-2xl p-5 flex-1 min-w-[190px]" style={PANEL}>
+    <div className="df-card relative overflow-hidden rounded-2xl p-4 sm:p-5 flex-1 min-w-[150px] sm:min-w-[190px]" style={PANEL}>
       <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${cor}, transparent 75%)` }} />
       <div className="absolute -right-8 -top-10 w-28 h-28 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${cor}22, transparent 70%)` }} />
       <div className="flex items-center gap-2.5 mb-3.5">
         <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${cor}1F`, color: cor }}>
           <Icon size={16} />
         </span>
-        <span className="text-[11px] tracking-wider uppercase font-medium" style={{ color: C.textDim, fontFamily: "Inter" }}>{label}</span>
+        <span className="text-[10px] sm:text-[11px] tracking-wider uppercase font-medium truncate" style={{ color: C.textDim, fontFamily: "Inter" }}>{label}</span>
       </div>
-      <div className="text-[1.7rem] leading-none font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{value}</div>
+      <div className="text-[1.3rem] sm:text-[1.7rem] leading-none whitespace-nowrap font-semibold" style={{ color: C.text, fontFamily: "Fraunces" }}>{value}</div>
       {sub && <div className="text-xs mt-2.5" style={{ color: subColor || C.textFaint, fontFamily: "Inter" }}>{sub}</div>}
     </div>
   );
@@ -401,11 +401,11 @@ function EmptyState({ icon: Icon = Film, title, sub, action }) {
 function PanelTitle({ icon: Icon, children, right }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-4">
-      <div className="flex items-center gap-2.5">
-        {Icon && <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(201,162,39,0.1)", color: C.goldBright }}><Icon size={15} /></span>}
-        <span className="text-[15px] font-semibold" style={{ color: C.text, fontFamily: "Inter" }}>{children}</span>
+      <div className="flex items-center gap-2.5 min-w-0">
+        {Icon && <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(201,162,39,0.1)", color: C.goldBright }}><Icon size={15} /></span>}
+        <span className="text-[15px] font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{children}</span>
       </div>
-      {right}
+      {right && <div className="flex-shrink-0">{right}</div>}
     </div>
   );
 }
@@ -1350,7 +1350,7 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
         <StatCard tone="violet" icon={Users} label="Clientes ativos" value={clientes.filter((c) => c.status === "Ativo").length} sub={`de ${clientes.length} cadastrados`} />
       </div>
 
-      <div className="grid gap-5 mb-6" style={{ gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr" }}>
+      <div className="grid gap-5 mb-6" style={{ gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 2fr) minmax(0, 1fr)" }}>
         <div className="rounded-2xl p-6" style={PANEL}>
           <PanelTitle icon={TrendingUp} right={<span className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>últimos 6 meses</span>}>Faturamento</PanelTitle>
           <ResponsiveContainer width="100%" height={230}>
@@ -1436,7 +1436,7 @@ function DashboardModule({ clientes, demandas, financeiro, equipe = [], activity
         </div>
       </div>
 
-      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr" }}>
+      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.3fr) minmax(0, 1fr)" }}>
         <div className="rounded-2xl p-6" style={PANEL}>
           <PanelTitle icon={Users}>Carga da equipe</PanelTitle>
           {carga.length === 0 && <div className="text-sm py-4" style={{ color: C.textFaint }}>Ninguém cadastrado ainda.</div>}
@@ -2072,12 +2072,12 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
         <StatCard tone="violet" icon={Receipt} label="Notas fiscais" value={`${notasEmitidas}/${financeiro.entradas.length}`} sub={`${notasPendentes} pendente${notasPendentes === 1 ? "" : "s"}`} subColor={notasPendentes ? C.red : C.green} />
       </div>
 
-      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
+      <div className="grid gap-5" style={{ gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))" }}>
         <div className="rounded-2xl p-5" style={PANEL}>
           <PanelTitle icon={TrendingUp} right={
             <button onClick={() => setOpen("entrada")} className="df-btn-ghost flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ color: C.green, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-              <Plus size={14} />Nova entrada
+              <Plus size={14} />Nova<span className="hidden sm:inline">&nbsp;entrada</span>
             </button>
           }>Entradas <span style={{ color: C.textFaint, fontWeight: 400 }}>· {brl(recebido)}</span></PanelTitle>
           {financeiro.entradas.length === 0 && <div className="text-sm py-6 text-center rounded-xl" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>Nenhuma entrada neste mês</div>}
@@ -2090,11 +2090,11 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
                   <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(111,191,139,0.12)", color: C.green }}><TrendingUp size={16} /></span>
                   <div className="min-w-0">
                     <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.client} · {e.date}</div>
+                    <div className="text-xs mt-0.5 truncate" style={{ color: C.textFaint }}>{e.client} · {e.date}</div>
                   </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-[15px] font-semibold mr-1" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
+                    <span className="text-[15px] font-semibold mr-1 whitespace-nowrap" style={{ color: C.green, fontFamily: "Inter" }}>+{brl(e.value)}</span>
                     <IconBtn onClick={() => toggleNota(e.id)} title={e.notaEmitida ? "Nota fiscal emitida" : "Marcar nota fiscal como emitida"}>
                       <Receipt size={13} color={e.notaEmitida ? C.green : C.textFaint} style={{ opacity: e.notaEmitida ? 1 : 0.5 }} />
                     </IconBtn>
@@ -2115,7 +2115,7 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
           <PanelTitle icon={TrendingDown} right={
             <button onClick={() => setOpen("saida")} className="df-btn-ghost flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ color: C.red, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-              <Plus size={14} />Nova saída
+              <Plus size={14} />Nova<span className="hidden sm:inline">&nbsp;saída</span>
             </button>
           }>Saídas <span style={{ color: C.textFaint, fontWeight: 400 }}>· {brl(gasto)}</span></PanelTitle>
           {financeiro.saidas.length === 0 && <div className="text-sm py-6 text-center rounded-xl" style={{ color: C.textFaint, border: `1px dashed ${C.border}`, fontFamily: "Inter" }}>Nenhuma saída neste mês</div>}
@@ -2126,11 +2126,11 @@ function FinanceiroModule({ financeiro, setFinanceiro, clientes = [], isMobile, 
                   <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(210,104,91,0.12)", color: C.red }}><TrendingDown size={16} /></span>
                   <div className="min-w-0">
                     <div className="text-[15px] font-medium truncate" style={{ color: C.text, fontFamily: "Inter" }}>{e.desc}</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.textFaint }}>{e.category} · {e.date}</div>
+                    <div className="text-xs mt-0.5 truncate" style={{ color: C.textFaint }}>{e.category} · {e.date}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-semibold" style={{ color: C.red, fontFamily: "Inter" }}>-{brl(e.value)}</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[15px] font-semibold whitespace-nowrap" style={{ color: C.red, fontFamily: "Inter" }}>-{brl(e.value)}</span>
                   <IconBtn onClick={() => removeEntry("saidas", e.id)}><Trash2 size={13} /></IconBtn>
                 </div>
               </div>
