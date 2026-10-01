@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -2928,10 +2928,68 @@ function highlightMentions(texto, equipe) {
     return seg.split(mentionRegex).map((part) => {
       key += 1;
       return nomes.includes(part)
-        ? <span key={`m${key}`} style={{ color: C.goldBright, fontWeight: 600 }}>@{part}</span>
+        ? <Mencao key={`m${key}`} user={equipe.find((u) => u.nome === part)} />
         : <React.Fragment key={`f${key}`}>{part}</React.Fragment>;
     });
   });
+}
+
+// @Nome no texto -- passar o mouse abre um cartão com o perfil da pessoa.
+// O cartão usa position fixed pra não ser cortado pelo card do post/comentário.
+function Mencao({ user }) {
+  const [pos, setPos] = useState(null);
+  const ref = useRef(null);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const abrir = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const r = ref.current?.getBoundingClientRect();
+      if (!r) return;
+      const largura = 280;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - largura - 8));
+      // abre pra baixo; se não couber, abre pra cima
+      const embaixo = r.bottom + 190 < window.innerHeight;
+      setPos({ left, top: embaixo ? r.bottom + 6 : undefined, bottom: embaixo ? undefined : window.innerHeight - r.top + 6 });
+    }, 250);
+  };
+  const fechar = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPos(null), 200); };
+
+  const linha = (Icone, texto) => texto && (
+    <span className="flex items-center gap-2 text-[13px] min-w-0" style={{ color: C.textDim }}>
+      <Icone size={14} className="flex-shrink-0" /><span className="truncate">{texto}</span>
+    </span>
+  );
+  const aniversario = user.aniversario
+    ? new Date(`${user.aniversario}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })
+    : "";
+
+  return (
+    <span ref={ref} onMouseEnter={abrir} onMouseLeave={fechar}
+      style={{ color: C.goldBright, fontWeight: 600, cursor: "pointer", whiteSpace: "normal" }}>
+      @{user.nome}
+      {pos && (
+        <span className="fixed z-50 block rounded-2xl p-4 df-scale-in" onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={fechar}
+          style={{ ...pos, width: 280, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)", fontFamily: "Inter", cursor: "default" }}>
+          <span className="flex items-center gap-3">
+            <FeedAvatar user={user} size={56} ring />
+            <span className="min-w-0 block">
+              <span className="block text-[15px] font-semibold truncate" style={{ color: C.text }}>{user.nome}</span>
+              {user.papel && <span className="block text-xs" style={{ color: C.goldBright }}>{user.papel}</span>}
+            </span>
+          </span>
+          {(user.email || user.telefone || aniversario) && (
+            <span className="block mt-3 pt-3 space-y-1.5" style={{ borderTop: `1px solid ${C.borderSoft}`, fontWeight: 400 }}>
+              {linha(Mail, user.email)}
+              {linha(Phone, user.telefone)}
+              {linha(Cake, aniversario && `Aniversário: ${aniversario}`)}
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function extrairMencoes(texto, equipe) {
