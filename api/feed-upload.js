@@ -12,6 +12,8 @@ export default async function handler(req, res) {
         allowedContentTypes: [
           "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic",
           "video/mp4", "video/quicktime", "video/webm",
+          // página .html -- é mostrada isolada pela rota /api/html-view
+          "text/html",
         ],
         addRandomSuffix: true,
         // vídeo do celular pesa -- 500 MB cobre alguns minutos em 4K

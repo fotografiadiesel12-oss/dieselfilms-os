@@ -15,9 +15,11 @@ function str(v, max) {
 function midias(v) {
   if (!Array.isArray(v)) return [];
   return v
-    .filter((m) => m && typeof m.url === "string" && /^https:\/\//.test(m.url) && ["imagem", "video"].includes(m.tipo))
+    .filter((m) => m && typeof m.url === "string" && /^https:\/\//.test(m.url) && ["imagem", "video", "html"].includes(m.tipo))
     .slice(0, MAX_MIDIAS)
-    .map((m) => ({ url: m.url.slice(0, 2000), tipo: m.tipo }));
+    .map((m) => (m.tipo === "html"
+      ? { url: m.url.slice(0, 2000), tipo: m.tipo, nome: str(m.nome, 200) }
+      : { url: m.url.slice(0, 2000), tipo: m.tipo }));
 }
 
 export default async function handler(req, res) {

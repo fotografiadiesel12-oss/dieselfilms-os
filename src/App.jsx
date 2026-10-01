@@ -3062,10 +3062,19 @@ function EmojiPicker({ onPick, onClose, style }) {
   );
 }
 
+// Página .html do Feed: o servidor devolve ela isolada (sem acesso ao login
+// nem aos dados do CRM) -- ver api/html-view.js
+const htmlViewUrl = (url) => `/api/html-view?u=${encodeURIComponent(url)}`;
+const SANDBOX_HTML = "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals";
+
 function MidiaItem({ m, cover, onClick, extra }) {
   return (
-    <button type="button" onClick={onClick} className="relative block w-full h-full overflow-hidden group" style={{ background: "#050504" }}>
-      {m.tipo === "video" ? (
+    <button type="button" onClick={onClick} className="relative block w-full h-full overflow-hidden group" style={{ background: m.tipo === "html" ? "#fff" : "#050504" }}>
+      {m.tipo === "html" ? (
+        // no post é só a "foto" da página; clicar abre ela inteira na tela cheia
+        <iframe src={htmlViewUrl(m.url)} title={m.nome || "Página"} sandbox={SANDBOX_HTML} loading="lazy" tabIndex={-1}
+          className="w-full h-full block" style={{ border: 0, pointerEvents: "none" }} />
+      ) : m.tipo === "video" ? (
         <video src={m.url} className="w-full h-full" style={{ objectFit: cover ? "cover" : "contain", maxHeight: cover ? "none" : 680 }}
           muted playsInline preload="metadata" />
       ) : (
@@ -3096,6 +3105,7 @@ function MidiaGrid({ midias, onOpen }) {
     if (m.tipo === "video") {
       return <video src={m.url} controls playsInline preload="metadata" className="w-full block" style={{ maxHeight: 680, background: "#050504" }} />;
     }
+    if (m.tipo === "html") return <div style={{ height: 520 }}><MidiaItem m={m} cover onClick={() => onOpen(0)} /></div>;
     return <MidiaItem m={m} onClick={() => onOpen(0)} />;
   }
   const mostrar = midias.slice(0, midias.length === 3 ? 3 : 4);
@@ -3146,7 +3156,10 @@ function Lightbox({ midias, index, onClose }) {
         <button onClick={(e) => { e.stopPropagation(); setI(i - 1); }} className="absolute left-5 p-3 rounded-full" style={navBtn}><ChevronLeft size={26} /></button>
       )}
       <div onClick={(e) => e.stopPropagation()} className="df-scale-in" key={i}>
-        {m.tipo === "video"
+        {m.tipo === "html"
+          ? <iframe src={htmlViewUrl(m.url)} title={m.nome || "Página"} sandbox={SANDBOX_HTML} className="block rounded-lg"
+              style={{ width: "min(1200px, 92vw)", height: "88vh", border: 0, background: "#fff" }} />
+          : m.tipo === "video"
           ? <video src={m.url} controls autoPlay playsInline style={{ maxWidth: "92vw", maxHeight: "88vh" }} />
           : <img src={m.url} alt="" style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain" }} />}
       </div>
@@ -3408,6 +3421,7 @@ function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDele
 }
 
 const MAX_MIDIAS_POST = 10;
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
 function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPublicado }) {
   const [texto, setTexto] = useState("");
@@ -3425,19 +3439,26 @@ function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPubli
   const atualizar = (id, patch) => setItens((lista) => lista.map((x) => (x.id === id ? { ...x, ...patch } : x)));
 
   const adicionarArquivos = (files) => {
-    const validos = Array.from(files || []).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
-    if (!validos.length) { if (files?.length) toastError("Só dá pra adicionar fotos e vídeos."); return; }
+    const ehHtml = (f) => f.type === "text/html" || /\.html?$/i.test(f.name);
+    const grandeDemais = Array.from(files || []).filter((f) => ehHtml(f) && f.size > MAX_HTML_BYTES);
+    if (grandeDemais.length) toastError("Arquivo .html muito grande (máximo 5 MB).");
+    const validos = Array.from(files || []).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/") || (ehHtml(f) && f.size <= MAX_HTML_BYTES));
+    if (!validos.length) { if (files?.length && !grandeDemais.length) toastError("Só dá pra adicionar fotos, vídeos e arquivos .html."); return; }
     const espaco = MAX_MIDIAS_POST - itensRef.current.length;
     if (validos.length > espaco) toastError(`Cada publicação aceita até ${MAX_MIDIAS_POST} fotos/vídeos.`);
     const novos = validos.slice(0, Math.max(0, espaco)).map((file) => ({
-      id: uid(), file, preview: URL.createObjectURL(file),
-      tipo: file.type.startsWith("video/") ? "video" : "imagem", progresso: 0, url: "", erro: false,
+      id: uid(), file, preview: URL.createObjectURL(file), nome: file.name,
+      tipo: ehHtml(file) ? "html" : file.type.startsWith("video/") ? "video" : "imagem", progresso: 0, url: "", erro: false,
     }));
     if (!novos.length) return;
     itensRef.current = [...itensRef.current, ...novos];
     setItens((lista) => [...lista, ...novos]);
+    // prévia da página no composer: mostra o HTML sem rodar scripts
+    novos.filter((n) => n.tipo === "html").forEach((n) => n.file.text().then((html) => atualizar(n.id, { html })).catch(() => {}));
     novos.forEach((n) => {
-      uploadMidia(n.file, (p) => atualizar(n.id, { progresso: p }))
+      // sobe sempre como text/html (o Windows às vezes não informa o tipo do arquivo)
+      const arquivo = n.tipo === "html" && n.file.type !== "text/html" ? new File([n.file], n.file.name, { type: "text/html" }) : n.file;
+      uploadMidia(arquivo, (p) => atualizar(n.id, { progresso: p }))
         .then((url) => atualizar(n.id, { url, progresso: 100 }))
         .catch(() => { atualizar(n.id, { erro: true }); toastError(`Não deu pra enviar "${n.file.name}".`); });
     });
@@ -3477,7 +3498,7 @@ function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPubli
     if (!podePostar) return;
     setPosting(true);
     try {
-      const post = await createPost({ tipo: "post", texto: texto.trim(), midias: prontos.map((x) => ({ url: x.url, tipo: x.tipo })) });
+      const post = await createPost({ tipo: "post", texto: texto.trim(), midias: prontos.map((x) => (x.tipo === "html" ? { url: x.url, tipo: x.tipo, nome: x.nome } : { url: x.url, tipo: x.tipo })) });
       onPublicado(post, texto.trim());
     } catch {
       toastError("Não deu pra publicar agora. Tente de novo.");
@@ -3531,10 +3552,13 @@ function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPubli
           {itens.length > 0 && (
             <div className="rounded-xl p-2 mb-3 grid gap-2" style={{ border: `1px solid ${C.border}`, gridTemplateColumns: itens.length === 1 ? "1fr" : "repeat(auto-fill, minmax(150px, 1fr))" }}>
               {itens.map((x) => (
-                <div key={x.id} className="relative rounded-lg overflow-hidden df-scale-in" style={{ background: "#050504", height: itens.length === 1 ? 300 : 150 }}>
-                  {x.tipo === "video"
+                <div key={x.id} className="relative rounded-lg overflow-hidden df-scale-in" style={{ background: x.tipo === "html" ? "#fff" : "#050504", height: itens.length === 1 ? 300 : 150 }}>
+                  {x.tipo === "html"
+                    ? <iframe srcDoc={x.html || ""} title={x.nome} sandbox="" tabIndex={-1} className="w-full h-full block" style={{ border: 0, pointerEvents: "none" }} />
+                    : x.tipo === "video"
                     ? <video src={x.preview} muted playsInline className="w-full h-full" style={{ objectFit: itens.length === 1 ? "contain" : "cover" }} />
                     : <img src={x.preview} alt="" className="w-full h-full" style={{ objectFit: itens.length === 1 ? "contain" : "cover" }} />}
+                  {x.tipo === "html" && <span className="absolute left-2 top-2 px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>PÁGINA</span>}
                   {x.tipo === "video" && <span className="absolute left-2 top-2 px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>VÍDEO</span>}
                   <button onClick={() => remover(x.id)} title="Remover" className="absolute right-2 top-2 p-1.5 rounded-full" style={{ background: "rgba(20,20,18,0.85)", color: "#fff" }}><X size={15} /></button>
                   {!x.url && !x.erro && (
@@ -3560,7 +3584,7 @@ function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPubli
           {arrastando && (
             <div className="absolute inset-0 z-10 m-2 rounded-2xl flex flex-col items-center justify-center gap-2 pointer-events-none"
               style={{ background: "rgba(20,18,12,0.92)", border: `2px dashed ${C.gold}`, color: C.goldBright, fontFamily: "Inter" }}>
-              <Upload size={32} /><div className="text-lg font-semibold">Solte as fotos e vídeos aqui</div>
+              <Upload size={32} /><div className="text-lg font-semibold">Solte as fotos, vídeos ou .html aqui</div>
             </div>
           )}
         </div>
@@ -3569,7 +3593,7 @@ function ComposerModal({ currentUser, equipe, arquivosIniciais, onClose, onPubli
           <div className="relative flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 mb-3" style={{ border: `1px solid ${C.border}` }}>
             <span className="text-sm font-medium" style={{ color: C.text, fontFamily: "Inter" }}>Adicionar à publicação</span>
             <div className="flex items-center gap-1">
-              <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
+              <input ref={fileRef} type="file" accept="image/*,video/*,.html,.htm,text/html" multiple className="hidden"
                 onChange={(e) => { adicionarArquivos(e.target.files); e.target.value = ""; }} />
               <button type="button" onClick={() => fileRef.current?.click()} title="Foto/vídeo" className="df-btn-ghost p-2 rounded-full" style={{ border: "1px solid transparent" }}>
                 <span className="block text-[22px] leading-none">🖼️</span>
@@ -3695,7 +3719,7 @@ function FeedModule({ equipe, currentUser }) {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-1 mt-3 pt-2" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-              <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden"
+              <input ref={fileRef} type="file" accept="image/*,video/*,.html,.htm,text/html" multiple className="hidden"
                 onChange={(e) => { const arquivos = Array.from(e.target.files || []); e.target.value = ""; if (arquivos.length) setComposer({ arquivos }); }} />
               <button onClick={() => fileRef.current?.click()} className="df-btn-ghost flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium" style={{ color: C.textDim, fontFamily: "Inter", border: "1px solid transparent" }}>
                 <span className="text-xl leading-none">🖼️</span>Foto/vídeo
