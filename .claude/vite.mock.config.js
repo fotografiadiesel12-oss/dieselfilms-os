@@ -18,6 +18,15 @@ const store = {
     saidas: [{ id: "s1", desc: "Fotografia Apartamento", category: "Pagamento - Luis", date: "28/08/2026", value: 85 }],
   }),
 };
+const ontem = new Date(Date.now() - 864e5).toISOString();
+const chat = {
+  equipe: [
+    { id: "c1", autorId: "u2", autorNome: "Luís Antônio", texto: "Bom dia, equipe! Amanhã tem gravação às 8h 🎬", criadoEm: ontem },
+    { id: "c2", autorId: "u1", autorNome: "Yuri Diesel", texto: "Fechado, levo o drone", criadoEm: ontem },
+    { id: "c3", autorId: "u2", autorNome: "Luís Antônio", texto: "Show! Não esquece as baterias extras", criadoEm: new Date().toISOString() },
+  ],
+};
+const lidas = {};
 const json = (res, code, obj) => { res.statusCode = code; res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(obj)); };
 const body = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { r(JSON.parse(b || "{}")); } catch { r({}); } }); });
 
@@ -48,6 +57,20 @@ export default defineConfig({
           ]);
         }
         if (p === "push") return json(res, 503, { error: "Avisos no aparelho ainda não configurados." });
+        if (p === "chat") {
+          const conv = url.searchParams.get("conversa");
+          if (req.method === "GET" && !conv) {
+            const r = {};
+            Object.entries(chat).forEach(([id, l]) => { if (l.length) r[id] = { ultima: l[l.length - 1], naoLida: l[l.length - 1].autorId !== "u1" && !lidas[id] }; });
+            return json(res, 200, r);
+          }
+          if (req.method === "GET") return json(res, 200, chat[conv] || []);
+          const b = await body(req);
+          if (b.lida) { lidas[b.conversa] = true; return json(res, 200, { ok: true }); }
+          const m = { id: String(Date.now()), autorId: "u1", autorNome: "Yuri Diesel", texto: b.texto, criadoEm: new Date().toISOString() };
+          chat[b.conversa] = [...(chat[b.conversa] || []), m];
+          return json(res, 201, m);
+        }
         return json(res, 200, req.method === "GET" ? [] : {});
       });
     },

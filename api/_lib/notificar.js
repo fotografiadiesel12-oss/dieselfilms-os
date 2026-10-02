@@ -25,8 +25,10 @@ function mensagem({ tipo, autorNome, trecho, reacao }) {
   return { title: `${quem} te marcou`, body: trecho };
 }
 
-async function enviarPush(kv, userIds, dados) {
-  if (!pushConfigurado()) return;
+// manda só o aviso pro aparelho (sem criar notificação no sininho).
+// aviso: { title, body, tag?, url? }
+export async function avisarNoAparelho(kv, userIds, aviso) {
+  if (!pushConfigurado() || !userIds.length) return;
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT || "https://dieselfilms-os.vercel.app",
     process.env.VAPID_PUBLIC_KEY,
@@ -35,7 +37,7 @@ async function enviarPush(kv, userIds, dados) {
   const inscricoes = (await kv.get(PUSH_KEY)) || [];
   const alvo = inscricoes.filter((i) => userIds.includes(i.userId));
   if (!alvo.length) return;
-  const payload = JSON.stringify({ ...mensagem(dados), url: "/" });
+  const payload = JSON.stringify({ url: "/", ...aviso });
   const vencidas = [];
   await Promise.allSettled(alvo.map((i) => webpush.sendNotification(i.subscription, payload, { TTL: 60 * 60 * 24 })
     .catch((err) => {
@@ -66,7 +68,7 @@ export async function notificar(kv, destinos, dados) {
   const todas = (await kv.get(KEY)) || [];
   await kv.set(KEY, [...novas, ...todas].slice(0, 1000));
   try {
-    await enviarPush(kv, ids, { ...dados, trecho: curto(dados.trecho) });
+    await avisarNoAparelho(kv, ids, mensagem({ ...dados, trecho: curto(dados.trecho) }));
   } catch (err) {
     console.error("Falha ao enviar aviso pro aparelho:", err);
   }

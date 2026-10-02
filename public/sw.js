@@ -12,6 +12,7 @@ self.addEventListener("push", (event) => {
     icon: "/apple-touch-icon.png",
     badge: "/favicon.png",
     data: { url: dados.url || "/" },
+    ...(dados.tag ? { tag: dados.tag, renotify: true } : {}),
   }));
 });
 
@@ -20,7 +21,10 @@ self.addEventListener("notificationclick", (event) => {
   const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((janelas) => {
     const aberta = janelas.find((j) => j.url.startsWith(self.location.origin));
-    if (aberta) return aberta.focus();
+    if (aberta) {
+      aberta.postMessage({ tipo: "abrir", url });
+      return aberta.focus();
+    }
     return self.clients.openWindow(url);
   }));
 });

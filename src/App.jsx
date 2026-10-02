@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake, Smile
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -22,6 +22,7 @@ import { uploadImagem, uploadMidia } from "./lib/mediaApi.js";
 import { hashPassword } from "./lib/authClient.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
 import { estadoAvisos, ativarAvisos, desativarAvisos } from "./lib/pushApi.js";
+import { listarConversas, listarMensagens, enviarMensagem, marcarLida } from "./lib/chatApi.js";
 import { listarAtividade, registrarAtividade } from "./lib/activityApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -1017,6 +1018,273 @@ function ProfileModal({ user, onSave, onClose }) {
       </Field>
       <PrimaryBtn onClick={salvar} disabled={saving || uploading}>{saving ? "Salvando..." : "Salvar perfil"}</PrimaryBtn>
     </Modal>
+  );
+}
+
+// Logo do chat: balão de conversa com a claquete da DieselFilms em cima
+function ChatLogo({ size = 30 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="dfChatOuro" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F4D77A" />
+          <stop offset="0.55" stopColor="#E8C158" />
+          <stop offset="1" stopColor="#9C7A1A" />
+        </linearGradient>
+      </defs>
+      <g transform="rotate(-10 6 16)">
+        <rect x="5" y="8" width="37" height="7.5" rx="1.6" fill="#1A1408" stroke="url(#dfChatOuro)" strokeWidth="1.6" />
+        {[0, 1, 2, 3].map((i) => (
+          <path key={i} d={`M${10 + i * 8.5} 8.8 h4.6 l-4 6 h-4.6 z`} fill="url(#dfChatOuro)" />
+        ))}
+      </g>
+      <path d="M8 19h32a3.5 3.5 0 0 1 3.5 3.5v13A3.5 3.5 0 0 1 40 39H20l-7.5 6.2V39H8a3.5 3.5 0 0 1-3.5-3.5v-13A3.5 3.5 0 0 1 8 19z" fill="url(#dfChatOuro)" />
+      {[16.5, 24, 31.5].map((x) => <circle key={x} cx={x} cy="29" r="2.5" fill="#1A1408" />)}
+    </svg>
+  );
+}
+
+const CHAT_EQUIPE = "equipe";
+
+// Chat da equipe (estilo Messenger): conversa com todo mundo + conversas a dois
+function TeamChat({ currentUser, equipe, isMobile }) {
+  const [aberto, setAberto] = useState(false);
+  const [conversa, setConversa] = useState(null);
+  const [resumo, setResumo] = useState({});
+  const [mensagens, setMensagens] = useState([]);
+  const [carregando, setCarregando] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const fimRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const outros = equipe.filter((u) => u.id !== currentUser.id);
+  const dmId = (u) => `dm:${[currentUser.id, u.id].sort().join(":")}`;
+  const conversas = [
+    { id: CHAT_EQUIPE, nome: "Equipe DieselFilms", grupo: true },
+    ...outros.map((u) => ({ id: dmId(u), nome: u.nome, user: u })),
+  ].map((c) => ({ ...c, ...(resumo[c.id] || {}) }))
+    .sort((a, b) => (a.grupo ? -1 : b.grupo ? 1 : (b.ultima?.criadoEm || "").localeCompare(a.ultima?.criadoEm || "")));
+  const atual = conversas.find((c) => c.id === conversa);
+  const naoLidas = conversas.filter((c) => c.naoLida).length;
+
+  const buscarResumo = () => listarConversas().then(setResumo).catch(() => {});
+  useEffect(() => {
+    buscarResumo();
+    const t = setInterval(buscarResumo, aberto ? 6000 : 15000);
+    return () => clearInterval(t);
+  }, [aberto]);
+
+  // abre a conversa certa quando a pessoa toca no aviso do celular/PC
+  useEffect(() => {
+    const abrirPorUrl = (url) => {
+      const c = new URL(url, window.location.origin).searchParams.get("chat");
+      if (c) { setAberto(true); setConversa(c); }
+    };
+    abrirPorUrl(window.location.href);
+    if (new URL(window.location.href).searchParams.has("chat")) window.history.replaceState(null, "", "/");
+    const onMsg = (e) => { if (e.data?.tipo === "abrir" && e.data.url) abrirPorUrl(e.data.url); };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, []);
+
+  useEffect(() => {
+    if (!aberto || !conversa) return;
+    let ativo = true;
+    const buscar = () => listarMensagens(conversa).then((m) => {
+      if (!ativo) return;
+      setMensagens((antes) => {
+        const ultimaNova = m[m.length - 1]?.id;
+        if (antes.length && ultimaNova && ultimaNova !== antes[antes.length - 1]?.id) marcarLida(conversa).catch(() => {});
+        return m;
+      });
+      setCarregando(false);
+    }).catch(() => setCarregando(false));
+    setCarregando(true);
+    setMensagens([]);
+    buscar();
+    marcarLida(conversa).then(buscarResumo).catch(() => {});
+    const t = setInterval(buscar, 4000);
+    return () => { ativo = false; clearInterval(t); };
+  }, [aberto, conversa]);
+
+  useEffect(() => { fimRef.current?.scrollIntoView({ block: "end" }); }, [mensagens.length, conversa]);
+
+  const enviar = () => {
+    const t = texto.trim();
+    if (!t || !conversa) return;
+    const temp = { id: `tmp-${uid()}`, autorId: currentUser.id, autorNome: currentUser.nome, texto: t, criadoEm: new Date().toISOString() };
+    setMensagens((m) => [...m, temp]);
+    setTexto("");
+    setEmojiOpen(false);
+    enviarMensagem(conversa, t)
+      .then((nova) => {
+        setMensagens((m) => m.map((x) => (x.id === temp.id ? nova : x)));
+        setResumo((r) => ({ ...r, [conversa]: { ultima: nova, naoLida: false } }));
+      })
+      .catch(() => {
+        setMensagens((m) => m.filter((x) => x.id !== temp.id));
+        setTexto(t);
+        toastError("Não deu pra enviar a mensagem. Tente de novo.");
+      });
+  };
+
+  const hora = (iso) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const dia = (iso) => {
+    const d = new Date(iso);
+    const hoje = new Date();
+    const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+    if (d.toDateString() === hoje.toDateString()) return "Hoje";
+    if (d.toDateString() === ontem.toDateString()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: d.getFullYear() === hoje.getFullYear() ? undefined : "numeric" });
+  };
+  const autorDe = (id) => equipe.find((u) => u.id === id);
+  const fechar = () => { setAberto(false); setConversa(null); setEmojiOpen(false); };
+
+  const painelStyle = isMobile
+    ? { position: "fixed", inset: 0, zIndex: 60 }
+    : { position: "fixed", right: 24, bottom: 24, width: 370, height: "min(560px, calc(100vh - 48px))", zIndex: 60, borderRadius: 16 };
+
+  const avatarConversa = (c, size) => (c.grupo
+    ? <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: size, height: size, background: "#151410", border: "1px solid rgba(201,162,39,0.45)" }}><ChatLogo size={Math.round(size * 0.62)} /></div>
+    : <FeedAvatar user={c.user} size={size} />);
+
+  return (
+    <>
+      {!aberto && (
+        <button onClick={() => setAberto(true)} title="Chat da equipe" aria-label="Abrir chat da equipe"
+          className="fixed rounded-full flex items-center justify-center df-fade-in"
+          style={{
+            right: isMobile ? 16 : 28, bottom: isMobile ? 84 : 28, width: isMobile ? 56 : 60, height: isMobile ? 56 : 60, zIndex: 40,
+            background: "radial-gradient(circle at 30% 25%, #26221A, #0E0D0B)", border: "1.5px solid rgba(232,193,88,0.55)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.55), 0 0 0 4px rgba(201,162,39,0.08)",
+          }}>
+          <ChatLogo size={isMobile ? 32 : 34} />
+          {naoLidas > 0 && (
+            <span className="absolute rounded-full text-[10px] font-bold flex items-center justify-center"
+              style={{ top: -2, right: -2, minWidth: 20, height: 20, padding: "0 5px", background: C.red, color: "#fff", border: `2px solid ${C.bg}`, fontFamily: "Inter" }}>
+              {naoLidas > 9 ? "9+" : naoLidas}
+            </span>
+          )}
+        </button>
+      )}
+
+      {aberto && (
+        <div className="flex flex-col overflow-hidden df-fade-in" style={{ ...painelStyle, background: "#121110", border: isMobile ? "none" : `1px solid ${C.border}`, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
+          {/* topo */}
+          <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${C.borderSoft}`, background: "linear-gradient(180deg, #1A1814, #141311)", paddingTop: isMobile ? "max(10px, env(safe-area-inset-top))" : undefined }}>
+            {atual ? (
+              <>
+                <button onClick={() => setConversa(null)} className="p-1.5 rounded-lg" style={{ color: C.goldBright }} title="Voltar" aria-label="Voltar pras conversas"><ChevronLeft size={20} /></button>
+                {avatarConversa(atual, 34)}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{atual.nome}</div>
+                  <div className="text-[11px] truncate" style={{ color: C.textFaint, fontFamily: "Inter" }}>{atual.grupo ? `${equipe.length} pessoas` : atual.user?.papel || ""}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="pl-1"><ChatLogo size={30} /></div>
+                <div className="flex-1 text-base font-semibold" style={{ color: C.text, fontFamily: "Fraunces, serif" }}>Chat da equipe</div>
+              </>
+            )}
+            <button onClick={fechar} className="p-1.5 rounded-lg" style={{ color: C.goldBright }} title="Fechar" aria-label="Fechar chat"><X size={20} /></button>
+          </div>
+
+          {!atual && (
+            <div className="flex-1 overflow-y-auto thin-scroll">
+              {conversas.map((c) => (
+                <button key={c.id} onClick={() => setConversa(c.id)} className="df-btn-ghost w-full flex items-center gap-3 px-4 py-3 text-left"
+                  style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  {avatarConversa(c, 44)}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm truncate" style={{ color: C.text, fontFamily: "Inter", fontWeight: c.naoLida ? 700 : 500 }}>{c.nome}</span>
+                      {c.ultima && <span className="text-[11px] flex-shrink-0" style={{ color: c.naoLida ? C.goldBright : C.textFaint, fontFamily: "Inter" }}>{dia(c.ultima.criadoEm) === "Hoje" ? hora(c.ultima.criadoEm) : dia(c.ultima.criadoEm)}</span>}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="text-xs truncate" style={{ color: c.naoLida ? C.text : C.textFaint, fontFamily: "Inter", fontWeight: c.naoLida ? 600 : 400 }}>
+                        {!c.ultima ? "Comece uma conversa"
+                          : c.ultima.autorId === currentUser.id ? `Você: ${c.ultima.texto}`
+                          : c.grupo ? `${c.ultima.autorNome.split(" ")[0]}: ${c.ultima.texto}`
+                          : c.ultima.texto}
+                      </span>
+                      {c.naoLida && <span className="rounded-full flex-shrink-0" style={{ width: 9, height: 9, background: C.goldBright }} />}
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {outros.length === 0 && <div className="px-4 py-4 text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>Quando mais gente entrar na equipe, as conversas aparecem aqui.</div>}
+            </div>
+          )}
+
+          {atual && (
+            <>
+              <div className="flex-1 overflow-y-auto thin-scroll px-3 py-3" style={{ background: "radial-gradient(120% 60% at 50% 0%, #17150F, #0F0E0C 70%)" }}>
+                {carregando && mensagens.length === 0 && <div className="flex justify-center py-6"><Loader2 size={20} className="df-spin" color={C.goldBright} /></div>}
+                {!carregando && mensagens.length === 0 && (
+                  <div className="flex flex-col items-center text-center gap-2 py-10 px-6">
+                    {avatarConversa(atual, 64)}
+                    <div className="text-sm font-semibold mt-1" style={{ color: C.text, fontFamily: "Inter" }}>{atual.nome}</div>
+                    <div className="text-xs" style={{ color: C.textFaint, fontFamily: "Inter" }}>{atual.grupo ? "Mensagens aqui chegam pra equipe toda." : "Mande a primeira mensagem."}</div>
+                  </div>
+                )}
+                {mensagens.map((m, i) => {
+                  const minha = m.autorId === currentUser.id;
+                  const anterior = mensagens[i - 1];
+                  const proxima = mensagens[i + 1];
+                  const novoDia = !anterior || dia(anterior.criadoEm) !== dia(m.criadoEm);
+                  const inicioGrupo = novoDia || anterior.autorId !== m.autorId;
+                  const fimGrupo = !proxima || proxima.autorId !== m.autorId || dia(proxima.criadoEm) !== dia(m.criadoEm);
+                  return (
+                    <React.Fragment key={m.id}>
+                      {novoDia && <div className="text-center text-[11px] font-semibold my-3" style={{ color: C.textFaint, fontFamily: "Inter" }}>{dia(m.criadoEm)}</div>}
+                      <div className={`flex items-end gap-2 ${minha ? "justify-end" : "justify-start"}`} style={{ marginTop: inicioGrupo ? 8 : 2 }}>
+                        {!minha && <div className="flex-shrink-0" style={{ width: 28 }}>{fimGrupo && <FeedAvatar user={autorDe(m.autorId)} nome={m.autorNome} size={28} />}</div>}
+                        <div className="min-w-0" style={{ maxWidth: "75%" }}>
+                          {!minha && atual.grupo && inicioGrupo && <div className="text-[11px] mb-0.5 ml-3" style={{ color: C.goldBright, fontFamily: "Inter" }}>{m.autorNome.split(" ")[0]}</div>}
+                          <div title={hora(m.criadoEm)} className="px-3.5 py-2 text-sm"
+                            style={{
+                              fontFamily: "Inter", whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.4, borderRadius: 18,
+                              ...(minha
+                                ? { background: "linear-gradient(135deg, #E8C158, #C9A227)", color: "#1A1408", borderBottomRightRadius: fimGrupo ? 6 : 18, borderTopRightRadius: inicioGrupo ? 18 : 6 }
+                                : { background: "#24221D", color: C.text, borderBottomLeftRadius: fimGrupo ? 6 : 18, borderTopLeftRadius: inicioGrupo ? 18 : 6 }),
+                              opacity: String(m.id).startsWith("tmp-") ? 0.6 : 1,
+                            }}>
+                            {m.texto}
+                          </div>
+                          {fimGrupo && <div className={`text-[10px] mt-0.5 ${minha ? "text-right mr-2" : "ml-3"}`} style={{ color: C.textFaint, fontFamily: "Inter" }}>{hora(m.criadoEm)}</div>}
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+                <div ref={fimRef} />
+              </div>
+
+              <div className="relative flex items-end gap-2 px-3 py-2.5 flex-shrink-0" style={{ borderTop: `1px solid ${C.borderSoft}`, background: "#141311", paddingBottom: isMobile ? "max(10px, env(safe-area-inset-bottom))" : undefined }}>
+                {emojiOpen && (
+                  <EmojiPicker onPick={(e) => { setTexto((t) => t + e); inputRef.current?.focus(); }} onClose={() => setEmojiOpen(false)} style={{ left: 8, bottom: "calc(100% + 6px)" }} />
+                )}
+                <button type="button" data-emoji-picker onClick={() => setEmojiOpen((o) => !o)} className="p-2 rounded-full flex-shrink-0" style={{ color: C.goldBright }} title="Emoji" aria-label="Emoji">
+                  <Smile size={20} />
+                </button>
+                <textarea ref={inputRef} rows={1} value={texto} placeholder="Mensagem"
+                  onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isMobile) { e.preventDefault(); enviar(); } }}
+                  className="flex-1 min-w-0 resize-none outline-none rounded-2xl px-4 py-2 thin-scroll"
+                  style={{ background: "#24221D", color: C.text, fontFamily: "Inter", border: `1px solid ${C.border}`, maxHeight: 110, fontSize: isMobile ? 16 : 14 }} />
+                <button onClick={enviar} disabled={!texto.trim()} className="p-2.5 rounded-full flex-shrink-0 flex items-center justify-center"
+                  style={{ background: texto.trim() ? "linear-gradient(135deg, #E8C158, #C9A227)" : "#24221D", color: texto.trim() ? "#1A1408" : C.textFaint }}
+                  title="Enviar" aria-label="Enviar mensagem">
+                  <Send size={18} />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -5493,6 +5761,7 @@ export default function DieselFilmsOS() {
           {modules}
         </div>
         <MobileBottomNav active={activeSafe} setActive={setActive} allowedNav={allowedNav} />
+        <TeamChat currentUser={currentUser} equipe={equipe} isMobile />
       </div>
     );
   }
@@ -5514,6 +5783,7 @@ export default function DieselFilmsOS() {
           {modules}
         </div>
       </div>
+      <TeamChat currentUser={currentUser} equipe={equipe} isMobile={false} />
     </div>
   );
 }
