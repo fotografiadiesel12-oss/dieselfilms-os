@@ -2475,19 +2475,6 @@ const buildContractHtml = (form, empresa) => buildContractText(form, empresa).sp
   return `<p style="margin:0 0 4px;text-align:justify">${line}</p>`;
 }).join("");
 
-const baixarContratoDoc = (titulo, html) => {
-  const conteudo = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body style="font-family:Calibri,Arial,sans-serif;font-size:13px;color:#1a1a1a;">${html}</body></html>`;
-  const blob = new Blob([conteudo], { type: "application/msword" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${(titulo || "contrato").trim().replace(/[^\w\-]+/g, "_") || "contrato"}.doc`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-};
-
 function ContratosModule({ contratos, setContratos, clientes = [], financeiro, setFinanceiro, isMobile, logActivity = () => {}, empresa: empresaSalva, setEmpresa }) {
   const empresa = { ...seedEmpresa(), ...(empresaSalva || {}) };
   const [empresaOpen, setEmpresaOpen] = useState(false);
@@ -2571,14 +2558,62 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
     setTimeout(() => setCopiedId((id) => (id === c.id ? null : id)), 1500);
   };
 
-  const baixar = () => {
-    const html = docRef.current ? docRef.current.innerHTML : buildContractHtml(form, empresa);
-    baixarContratoDoc(form.titulo, html);
+  // texto do contrato: o da prévia; com a prévia escondida, o texto já editado do contrato salvo
+  const corpoAtual = () => {
+    if (docRef.current) return docRef.current.innerHTML;
+    const salvo = editingId && docTouched ? contratos.find((c) => c.id === editingId)?.corpoHtml : null;
+    return salvo || buildContractHtml(form, empresa);
+  };
+
+  const [gerandoArquivo, setGerandoArquivo] = useState(null);
+  const dadosArquivo = () => ({ titulo: form.titulo, logo: LOGO_IMG, empresa, html: corpoAtual() });
+
+  const baixar = async (formato) => {
+    setGerandoArquivo(formato);
+    try {
+      if (formato === "pdf") (await import("./contratoPdf.js")).baixarContratoPdf(dadosArquivo());
+      else await (await import("./contratoWord.js")).baixarContratoWord(dadosArquivo());
+    } catch (err) {
+      console.error(err);
+      toastError("Não deu pra gerar o arquivo. Tente de novo.");
+    } finally {
+      setGerandoArquivo(null);
+    }
+  };
+
+  // abre o e-mail de quem está usando o CRM já com o cliente como destinatário
+  const enviarPorEmail = async () => {
+    const para = (form.emailCliente || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(para)) { toastError("Preencha o e-mail do cliente antes de enviar."); return; }
+    setGerandoArquivo("email");
+    try {
+      const { gerarContratoPdf } = await import("./contratoPdf.js");
+      const { doc, nome, arquivo } = gerarContratoPdf(dadosArquivo());
+      const assunto = form.titulo ? `Contrato — ${form.titulo}` : "Contrato DieselFilms";
+      const saudacao = form.cliente ? `Olá, ${form.cliente.split(" ")[0]}!` : "Olá!";
+      const texto = `${saudacao}\n\nSegue em anexo o contrato para sua leitura e assinatura. Qualquer dúvida, é só responder este e-mail.\n\nAbraço,\nDieselFilms`;
+      if (isMobile && navigator.canShare?.({ files: [arquivo] })) {
+        // celular: abre a lista de apps com o PDF já anexado
+        navigator.clipboard?.writeText(para).catch(() => {});
+        toastSuccess(`E-mail do cliente copiado: ${para}. Escolha o app de e-mail e cole no "Para".`);
+        await navigator.share({ files: [arquivo], title: assunto, text: texto }).catch(() => {});
+      } else {
+        // computador: baixa o PDF e abre o e-mail com destinatário, assunto e texto prontos
+        doc.save(nome);
+        window.location.href = `mailto:${encodeURIComponent(para)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto)}`;
+        toastSuccess("O PDF foi baixado. É só anexar no e-mail que abriu e enviar.");
+      }
+    } catch (err) {
+      console.error(err);
+      toastError("Não deu pra preparar o e-mail. Tente de novo.");
+    } finally {
+      setGerandoArquivo(null);
+    }
   };
 
   const gerarESalvar = () => {
     if (!form.titulo.trim()) { toastError("Dê um título ao contrato antes de salvar."); return; }
-    const corpoHtml = docRef.current ? docRef.current.innerHTML : buildContractHtml(form, empresa);
+    const corpoHtml = corpoAtual();
     const id = editingId || uid();
     const payload = { ...form, valor: Number(form.valor) || 0, corpoHtml };
     if (editingId) {
@@ -2886,14 +2921,24 @@ function ContratosModule({ contratos, setContratos, clientes = [], financeiro, s
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 flex-wrap" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
-              <button onClick={baixar} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter" }}>
-                <Download size={15} />Baixar
-              </button>
-              <PrimaryBtn onClick={gerarESalvar}>
-                <Plus size={16} />Gerar e salvar no mês
-              </PrimaryBtn>
+            <div className={isMobile ? "grid gap-2 px-4 py-3" : "flex items-center justify-end gap-3 px-6 py-4 flex-wrap"}
+              style={{ borderTop: `1px solid ${C.borderSoft}`, ...(isMobile ? { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" } : {}) }}>
+              {[
+                { id: "pdf", label: "PDF", icon: Download, onClick: () => baixar("pdf") },
+                { id: "word", label: "Word", icon: Download, onClick: () => baixar("word") },
+                { id: "email", label: isMobile ? "E-mail" : "Enviar por e-mail", icon: Mail, onClick: enviarPorEmail },
+              ].map((b) => (
+                <button key={b.id} onClick={b.onClick} disabled={!!gerandoArquivo}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{ color: C.textDim, border: `1px solid ${C.border}`, fontFamily: "Inter", opacity: gerandoArquivo && gerandoArquivo !== b.id ? 0.5 : 1 }}>
+                  {gerandoArquivo === b.id ? <Loader2 size={15} className="df-spin" /> : <b.icon size={15} />}{b.label}
+                </button>
+              ))}
+              <div style={isMobile ? { gridColumn: "1 / -1", display: "grid" } : undefined}>
+                <PrimaryBtn onClick={gerarESalvar}>
+                  <Plus size={16} />Gerar e salvar no mês
+                </PrimaryBtn>
+              </div>
             </div>
           </div>
         </div>
