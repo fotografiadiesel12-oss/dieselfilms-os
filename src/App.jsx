@@ -1051,7 +1051,7 @@ function TeamChat({ currentUser, equipe, isMobile }) {
   const [aberto, setAberto] = useState(false);
   const [conversa, setConversa] = useState(null);
   const [resumo, setResumo] = useState({});
-  const [online, setOnline] = useState({});
+  const [vistos, setVistos] = useState({}); // quando cada pessoa esteve online pela última vez
   const presencaRef = useRef(0); // quando avisou que está online pela última vez
   const [mensagens, setMensagens] = useState([]);
   const [carregando, setCarregando] = useState(false);
@@ -1078,8 +1078,8 @@ function TeamChat({ currentUser, equipe, isMobile }) {
     // avisa que está online no máximo 1x por minuto, e só com o CRM visível na tela
     const presenca = document.visibilityState === "visible" && Date.now() - presencaRef.current > 55000;
     if (presenca) presencaRef.current = Date.now();
-    return listarConversas(presenca).then(({ conversas: r = {}, online: on = {} }) => {
-    setOnline(on);
+    return listarConversas(presenca).then(({ conversas: r = {}, vistos: v = {} }) => {
+    setVistos(v);
     const primeiraVez = vistasRef.current === null;
     const vistas = vistasRef.current || {};
     Object.entries(r).forEach(([id, { ultima, naoLida }]) => {
@@ -1093,7 +1093,18 @@ function TeamChat({ currentUser, equipe, isMobile }) {
     setResumo(r);
   }).catch(() => {});
   };
-  const estaOnline = (id) => !!online[id] && id !== currentUser.id;
+  const estaOnline = (id) => id !== currentUser.id && !!vistos[id] && Date.now() - new Date(vistos[id]).getTime() < 150000;
+  const vistoPorUltimo = (id) => {
+    if (!vistos[id]) return "";
+    const d = new Date(vistos[id]);
+    const min = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (min < 60) return `Visto há ${Math.max(1, min)} min`;
+    if (min < 6 * 60) return `Visto há ${Math.floor(min / 60)} h`;
+    const quando = dia(vistos[id]);
+    return quando === "Hoje" || quando === "Ontem"
+      ? `Visto ${quando.toLowerCase()} às ${hora(vistos[id])}`
+      : `Visto em ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
+  };
   const onlineAgora = outros.filter((u) => estaOnline(u.id));
   useEffect(() => {
     buscarResumo();
@@ -1234,7 +1245,7 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                   <div className="text-sm font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{atual.nome}</div>
                   <div className="text-[11px] truncate" style={{ color: C.textFaint, fontFamily: "Inter" }}>{atual.grupo
                     ? `${equipe.length} pessoas${onlineAgora.length ? ` · ${onlineAgora.length} online` : ""}`
-                    : estaOnline(atual.user?.id) ? <span style={{ color: C.green }}>Online agora</span> : atual.user?.papel || ""}</div>
+                    : estaOnline(atual.user?.id) ? <span style={{ color: C.green }}>Online agora</span> : vistoPorUltimo(atual.user?.id) || atual.user?.papel || ""}</div>
                 </div>
               </>
             ) : (
@@ -1272,7 +1283,7 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <span className="text-xs truncate" style={{ color: c.naoLida ? C.text : C.textFaint, fontFamily: "Inter", fontWeight: c.naoLida ? 600 : 400 }}>
-                        {!c.ultima ? "Comece uma conversa"
+                        {!c.ultima ? (c.user && !estaOnline(c.user.id) && vistoPorUltimo(c.user.id)) || "Comece uma conversa"
                           : c.ultima.autorId === currentUser.id ? `Você: ${c.ultima.texto || "📷 Foto"}`
                           : c.grupo ? `${c.ultima.autorNome.split(" ")[0]}: ${c.ultima.texto || "📷 Foto"}`
                           : c.ultima.texto || "📷 Foto"}
