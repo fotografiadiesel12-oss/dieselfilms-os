@@ -15,7 +15,8 @@ const post = (data) => request("/api/chat", {
   body: JSON.stringify(data),
 });
 
-export const listarConversas = () => request("/api/chat", { headers: authHeaders() });
+// presenca: avisa que esta pessoa está online (o chat manda uma vez por minuto)
+export const listarConversas = (presenca) => request(`/api/chat${presenca ? "?presenca=1" : ""}`, { headers: authHeaders() });
 export const listarMensagens = (conversa) => request(`/api/chat?conversa=${encodeURIComponent(conversa)}`, { headers: authHeaders() });
 export const enviarMensagem = (conversa, texto, imagem) => post({ conversa, texto, ...(imagem ? { imagem } : {}) });
 export const marcarLida = (conversa) => post({ conversa, lida: true });

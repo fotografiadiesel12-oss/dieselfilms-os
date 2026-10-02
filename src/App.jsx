@@ -1051,6 +1051,8 @@ function TeamChat({ currentUser, equipe, isMobile }) {
   const [aberto, setAberto] = useState(false);
   const [conversa, setConversa] = useState(null);
   const [resumo, setResumo] = useState({});
+  const [online, setOnline] = useState({});
+  const presencaRef = useRef(0); // quando avisou que está online pela última vez
   const [mensagens, setMensagens] = useState([]);
   const [carregando, setCarregando] = useState(false);
   const [texto, setTexto] = useState("");
@@ -1072,7 +1074,12 @@ function TeamChat({ currentUser, equipe, isMobile }) {
 
   const abertoRef = useRef({ aberto: false, conversa: null });
   abertoRef.current = { aberto, conversa };
-  const buscarResumo = () => listarConversas().then((r) => {
+  const buscarResumo = () => {
+    // avisa que está online no máximo 1x por minuto, e só com o CRM visível na tela
+    const presenca = document.visibilityState === "visible" && Date.now() - presencaRef.current > 55000;
+    if (presenca) presencaRef.current = Date.now();
+    return listarConversas(presenca).then(({ conversas: r = {}, online: on = {} }) => {
+    setOnline(on);
     const primeiraVez = vistasRef.current === null;
     const vistas = vistasRef.current || {};
     Object.entries(r).forEach(([id, { ultima, naoLida }]) => {
@@ -1085,6 +1092,9 @@ function TeamChat({ currentUser, equipe, isMobile }) {
     vistasRef.current = vistas;
     setResumo(r);
   }).catch(() => {});
+  };
+  const estaOnline = (id) => !!online[id] && id !== currentUser.id;
+  const onlineAgora = outros.filter((u) => estaOnline(u.id));
   useEffect(() => {
     buscarResumo();
     const t = setInterval(buscarResumo, aberto ? 6000 : 15000);
@@ -1182,7 +1192,15 @@ function TeamChat({ currentUser, equipe, isMobile }) {
 
   const avatarConversa = (c, size) => (c.grupo
     ? <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: size, height: size, background: "#151410", border: "1px solid rgba(201,162,39,0.45)" }}><ChatLogo size={Math.round(size * 0.62)} /></div>
-    : <FeedAvatar user={c.user} size={size} />);
+    : (
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+        <FeedAvatar user={c.user} size={size} />
+        {estaOnline(c.user.id) && (
+          <span className="absolute rounded-full" title="Online agora"
+            style={{ right: 0, bottom: 0, width: Math.max(10, size * 0.28), height: Math.max(10, size * 0.28), background: C.green, border: "2.5px solid #121110" }} />
+        )}
+      </div>
+    ));
 
   return (
     <>
@@ -1214,7 +1232,9 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                 {avatarConversa(atual, 34)}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold truncate" style={{ color: C.text, fontFamily: "Inter" }}>{atual.nome}</div>
-                  <div className="text-[11px] truncate" style={{ color: C.textFaint, fontFamily: "Inter" }}>{atual.grupo ? `${equipe.length} pessoas` : atual.user?.papel || ""}</div>
+                  <div className="text-[11px] truncate" style={{ color: C.textFaint, fontFamily: "Inter" }}>{atual.grupo
+                    ? `${equipe.length} pessoas${onlineAgora.length ? ` · ${onlineAgora.length} online` : ""}`
+                    : estaOnline(atual.user?.id) ? <span style={{ color: C.green }}>Online agora</span> : atual.user?.papel || ""}</div>
                 </div>
               </>
             ) : (
@@ -1228,6 +1248,19 @@ function TeamChat({ currentUser, equipe, isMobile }) {
 
           {!atual && (
             <div className="flex-1 overflow-y-auto thin-scroll">
+              {onlineAgora.length > 0 && (
+                <div className="px-4 pt-3 pb-2" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: C.textFaint, fontFamily: "Inter" }}>Online agora</div>
+                  <div className="flex gap-3 overflow-x-auto thin-scroll pb-1">
+                    {onlineAgora.map((u) => (
+                      <button key={u.id} onClick={() => setConversa(dmId(u))} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ width: 56 }} title={`Conversar com ${u.nome}`}>
+                        {avatarConversa({ user: u }, 44)}
+                        <span className="text-[11px] truncate w-full text-center" style={{ color: C.textDim, fontFamily: "Inter" }}>{u.nome.split(" ")[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {conversas.map((c) => (
                 <button key={c.id} onClick={() => setConversa(c.id)} className="df-btn-ghost w-full flex items-center gap-3 px-4 py-3 text-left"
                   style={{ borderBottom: `1px solid ${C.borderSoft}` }}>

@@ -65,7 +65,7 @@ export default defineConfig({
           if (req.method === "GET" && !conv) {
             const r = {};
             Object.entries(chat).forEach(([id, l]) => { if (l.length) r[id] = { ultima: l[l.length - 1], naoLida: l[l.length - 1].autorId !== "u1" && !lidas[id] }; });
-            return json(res, 200, r);
+            return json(res, 200, { conversas: r, online: { u1: new Date().toISOString(), u2: new Date().toISOString() } });
           }
           if (req.method === "GET") return json(res, 200, chat[conv] || []);
           const b = await body(req);

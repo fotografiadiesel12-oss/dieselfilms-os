@@ -5,7 +5,9 @@ import { avisarNoAparelho } from "../notificar.js";
 
 // Chat da equipe: uma conversa com todo mundo ("equipe") e conversas a dois
 // ("dm:<id>:<id>", com os ids em ordem alfabética).
-//   GET                      -> resumo das conversas (última mensagem e se tem não lida)
+//   GET                      -> { conversas, online }: resumo das conversas (última
+//                               mensagem e se tem não lida) e quem está online
+//   GET ?presenca=1          -> igual, e marca quem pediu como online
 //   GET ?conversa=<id>       -> mensagens da conversa
 //   POST { conversa, texto } -> envia mensagem
 //   POST { conversa, lida: true } -> marca a conversa como lida
@@ -15,6 +17,10 @@ const MAX_TEXTO = 2000;
 const RESUMO = "chat_resumo"; // { conversa: última mensagem }
 const chaveConversa = (id) => `chat:${id}`;
 const chaveLidas = (uid) => `chat_lidas:${uid}`;
+// "online": cada aparelho com o CRM aberto avisa uma vez por minuto; a marca
+// some sozinha depois de 2,5 minutos sem aviso
+const chaveOnline = (uid) => `online:${uid}`;
+const ONLINE_SEGUNDOS = 150;
 
 function participantes(conversa, equipe) {
   if (conversa === "equipe") return equipe.map((u) => u.id);
@@ -48,7 +54,13 @@ export default async function handler(req, res) {
       if (!quem || !quem.includes(session.uid)) return;
       minhas[id] = { ultima, naoLida: ultima.autorId !== session.uid && (!lidas[id] || lidas[id] < ultima.criadoEm) };
     });
-    res.status(200).json(minhas);
+    const agora = new Date().toISOString();
+    if (req.query.presenca) await kv.set(chaveOnline(session.uid), agora, { ex: ONLINE_SEGUNDOS });
+    const vistos = equipe.length ? await kv.mget(...equipe.map((u) => chaveOnline(u.id))) : [];
+    const online = {};
+    equipe.forEach((u, i) => { if (vistos[i]) online[u.id] = vistos[i]; });
+    if (req.query.presenca) online[session.uid] = agora;
+    res.status(200).json({ conversas: minhas, online });
     return;
   }
 
