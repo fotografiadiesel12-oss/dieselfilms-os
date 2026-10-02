@@ -46,7 +46,10 @@ export default defineConfig({
           if (req.method === "PUT") { store[k] = (await body(req)).value; return json(res, 200, { ok: true }); }
           delete store[k]; return json(res, 200, { ok: true });
         }
-        if (p === "feed") return json(res, 200, []);
+        if (p === "feed") return json(res, 200, [{
+          id: "f1", tipo: "post", autorId: "bot-dieselzinho", autorNome: "Dieselzinho", texto: "@Todos 🔔 Novidade no CRM! Valeu @Luís Antônio pela ideia.",
+          midias: [], criadoEm: new Date().toISOString(), reacoes: { curtir: [], amei: [], visto: [], trabalhando: [] }, comentarios: [],
+        }]);
         if (p.startsWith("notifications")) {
           const t = new Date().toISOString();
           return json(res, 200, req.method !== "GET" ? {} : [

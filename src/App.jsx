@@ -3326,11 +3326,14 @@ function highlightMentions(texto, equipe) {
         </a>
       );
     }
-    if (escapedNomes.length === 0) { key += 1; return <React.Fragment key={`t${key}`}>{seg}</React.Fragment>; }
-    const mentionRegex = new RegExp(`@(${escapedNomes.join("|")})`, "g");
-    return seg.split(mentionRegex).map((part) => {
+    // @Todos: o Dieselzinho usa pra avisar a equipe inteira
+    const mentionRegex = new RegExp(`@(${[...escapedNomes, "Todos"].join("|")})`, "g");
+    return seg.split(mentionRegex).map((part, i) => {
       key += 1;
-      return nomes.includes(part)
+      if (i % 2 === 1 && part === "Todos" && !nomes.includes("Todos")) {
+        return <span key={`m${key}`} title="Aviso pra equipe toda" style={{ color: C.goldBright, fontWeight: 600 }}>@Todos</span>;
+      }
+      return i % 2 === 1 && nomes.includes(part)
         ? <Mencao key={`m${key}`} user={equipe.find((u) => u.nome === part)} />
         : <React.Fragment key={`f${key}`}>{part}</React.Fragment>;
     });
