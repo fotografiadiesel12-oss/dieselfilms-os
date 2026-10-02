@@ -67,7 +67,9 @@ export default defineConfig({
           if (req.method === "GET") return json(res, 200, chat[conv] || []);
           const b = await body(req);
           if (b.lida) { lidas[b.conversa] = true; return json(res, 200, { ok: true }); }
-          const m = { id: String(Date.now()), autorId: "u1", autorNome: "Yuri Diesel", texto: b.texto, criadoEm: new Date().toISOString() };
+          // _comoLuis: simula mensagem chegando de outra pessoa (pra testar avisos)
+          const m = { id: String(Date.now()), autorId: b._comoLuis ? "u2" : "u1", autorNome: b._comoLuis ? "Luís Antônio" : "Yuri Diesel", texto: b.texto || "", ...(b.imagem ? { imagem: b.imagem } : {}), criadoEm: new Date().toISOString() };
+          if (b._comoLuis) delete lidas[b.conversa];
           chat[b.conversa] = [...(chat[b.conversa] || []), m];
           return json(res, 201, m);
         }

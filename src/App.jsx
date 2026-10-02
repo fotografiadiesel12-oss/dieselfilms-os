@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake, Smile
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake, Smile, ImagePlus
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -1057,6 +1057,8 @@ function TeamChat({ currentUser, equipe, isMobile }) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const fimRef = useRef(null);
   const inputRef = useRef(null);
+  const fotoRef = useRef(null);
+  const vistasRef = useRef(null); // última mensagem já avisada de cada conversa
 
   const outros = equipe.filter((u) => u.id !== currentUser.id);
   const dmId = (u) => `dm:${[currentUser.id, u.id].sort().join(":")}`;
@@ -1068,7 +1070,21 @@ function TeamChat({ currentUser, equipe, isMobile }) {
   const atual = conversas.find((c) => c.id === conversa);
   const naoLidas = conversas.filter((c) => c.naoLida).length;
 
-  const buscarResumo = () => listarConversas().then(setResumo).catch(() => {});
+  const abertoRef = useRef({ aberto: false, conversa: null });
+  abertoRef.current = { aberto, conversa };
+  const buscarResumo = () => listarConversas().then((r) => {
+    const primeiraVez = vistasRef.current === null;
+    const vistas = vistasRef.current || {};
+    Object.entries(r).forEach(([id, { ultima, naoLida }]) => {
+      if (!primeiraVez && naoLida && vistas[id] !== ultima.id) {
+        const naTela = abertoRef.current.aberto && abertoRef.current.conversa === id;
+        if (!naTela) toastSuccess(`💬 ${ultima.autorNome.split(" ")[0]}${id === CHAT_EQUIPE ? " (equipe)" : ""}: ${ultima.texto || "📷 Foto"}`);
+      }
+      vistas[id] = ultima.id;
+    });
+    vistasRef.current = vistas;
+    setResumo(r);
+  }).catch(() => {});
   useEffect(() => {
     buscarResumo();
     const t = setInterval(buscarResumo, aberto ? 6000 : 15000);
@@ -1109,6 +1125,25 @@ function TeamChat({ currentUser, equipe, isMobile }) {
   }, [aberto, conversa]);
 
   useEffect(() => { fimRef.current?.scrollIntoView({ block: "end" }); }, [mensagens.length, conversa]);
+
+  const enviarFoto = async (file) => {
+    if (!file || !conversa) return;
+    if (!file.type.startsWith("image/")) { toastError("Escolha uma imagem."); return; }
+    const local = URL.createObjectURL(file);
+    const temp = { id: `tmp-${uid()}`, autorId: currentUser.id, autorNome: currentUser.nome, texto: "", imagem: local, criadoEm: new Date().toISOString() };
+    setMensagens((m) => [...m, temp]);
+    try {
+      const url = await uploadImagem(file);
+      const nova = await enviarMensagem(conversa, "", url);
+      setMensagens((m) => m.map((x) => (x.id === temp.id ? nova : x)));
+      setResumo((r) => ({ ...r, [conversa]: { ultima: nova, naoLida: false } }));
+    } catch {
+      setMensagens((m) => m.filter((x) => x.id !== temp.id));
+      toastError("Não deu pra enviar a foto. Tente de novo.");
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(local), 5000);
+    }
+  };
 
   const enviar = () => {
     const t = texto.trim();
@@ -1205,9 +1240,9 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <span className="text-xs truncate" style={{ color: c.naoLida ? C.text : C.textFaint, fontFamily: "Inter", fontWeight: c.naoLida ? 600 : 400 }}>
                         {!c.ultima ? "Comece uma conversa"
-                          : c.ultima.autorId === currentUser.id ? `Você: ${c.ultima.texto}`
-                          : c.grupo ? `${c.ultima.autorNome.split(" ")[0]}: ${c.ultima.texto}`
-                          : c.ultima.texto}
+                          : c.ultima.autorId === currentUser.id ? `Você: ${c.ultima.texto || "📷 Foto"}`
+                          : c.grupo ? `${c.ultima.autorNome.split(" ")[0]}: ${c.ultima.texto || "📷 Foto"}`
+                          : c.ultima.texto || "📷 Foto"}
                       </span>
                       {c.naoLida && <span className="rounded-full flex-shrink-0" style={{ width: 9, height: 9, background: C.goldBright }} />}
                     </div>
@@ -1243,7 +1278,14 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                         {!minha && <div className="flex-shrink-0" style={{ width: 28 }}>{fimGrupo && <FeedAvatar user={autorDe(m.autorId)} nome={m.autorNome} size={28} />}</div>}
                         <div className="min-w-0" style={{ maxWidth: "75%" }}>
                           {!minha && atual.grupo && inicioGrupo && <div className="text-[11px] mb-0.5 ml-3" style={{ color: C.goldBright, fontFamily: "Inter" }}>{m.autorNome.split(" ")[0]}</div>}
-                          <div title={hora(m.criadoEm)} className="px-3.5 py-2 text-sm"
+                          {m.imagem && (
+                            <a href={String(m.id).startsWith("tmp-") ? undefined : m.imagem} target="_blank" rel="noreferrer" className="block" title="Abrir foto">
+                              <img src={m.imagem} alt="Foto" loading="lazy" onLoad={() => fimRef.current?.scrollIntoView({ block: "end" })}
+                                className="block rounded-2xl object-cover"
+                                style={{ maxWidth: 230, maxHeight: 300, width: "100%", border: `1px solid ${C.border}`, opacity: String(m.id).startsWith("tmp-") ? 0.6 : 1, marginLeft: minha ? "auto" : 0 }} />
+                            </a>
+                          )}
+                          {m.texto && <div title={hora(m.criadoEm)} className={`px-3.5 py-2 text-sm ${m.imagem ? "mt-1" : ""}`}
                             style={{
                               fontFamily: "Inter", whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.4, borderRadius: 18,
                               ...(minha
@@ -1252,7 +1294,7 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                               opacity: String(m.id).startsWith("tmp-") ? 0.6 : 1,
                             }}>
                             {m.texto}
-                          </div>
+                          </div>}
                           {fimGrupo && <div className={`text-[10px] mt-0.5 ${minha ? "text-right mr-2" : "ml-3"}`} style={{ color: C.textFaint, fontFamily: "Inter" }}>{hora(m.criadoEm)}</div>}
                         </div>
                       </div>
@@ -1266,7 +1308,12 @@ function TeamChat({ currentUser, equipe, isMobile }) {
                 {emojiOpen && (
                   <EmojiPicker onPick={(e) => { setTexto((t) => t + e); inputRef.current?.focus(); }} onClose={() => setEmojiOpen(false)} style={{ left: 8, bottom: "calc(100% + 6px)" }} />
                 )}
-                <button type="button" data-emoji-picker onClick={() => setEmojiOpen((o) => !o)} className="p-2 rounded-full flex-shrink-0" style={{ color: C.goldBright }} title="Emoji" aria-label="Emoji">
+                <input ref={fotoRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { enviarFoto(e.target.files?.[0]); e.target.value = ""; }} />
+                <button type="button" onClick={() => fotoRef.current?.click()} className="p-2 rounded-full flex-shrink-0" style={{ color: C.goldBright }} title="Mandar foto" aria-label="Mandar foto">
+                  <ImagePlus size={20} />
+                </button>
+                <button type="button" data-emoji-picker onClick={() => setEmojiOpen((o) => !o)} className="p-2 -ml-2 rounded-full flex-shrink-0" style={{ color: C.goldBright }} title="Emoji" aria-label="Emoji">
                   <Smile size={20} />
                 </button>
                 <textarea ref={inputRef} rows={1} value={texto} placeholder="Mensagem"

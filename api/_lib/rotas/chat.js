@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { kv } from "@vercel/kv";
-import { requireSession, loadEquipeMember } from "./_lib/session.js";
-import { avisarNoAparelho } from "./_lib/notificar.js";
+import { requireSession, loadEquipeMember } from "../session.js";
+import { avisarNoAparelho } from "../notificar.js";
 
 // Chat da equipe: uma conversa com todo mundo ("equipe") e conversas a dois
 // ("dm:<id>:<id>", com os ids em ordem alfabética).
@@ -73,8 +73,11 @@ export default async function handler(req, res) {
       return;
     }
     const texto = typeof body.texto === "string" ? body.texto.slice(0, MAX_TEXTO).trim() : "";
-    if (!texto) {
-      res.status(400).json({ error: "Escreva uma mensagem." });
+    // foto: só aceita o que já subiu pro Vercel Blob
+    const imagem = typeof body.imagem === "string" && /^https:\/\/[\w-]+\.public\.blob\.vercel-storage\.com\//.test(body.imagem)
+      ? body.imagem.slice(0, 2000) : "";
+    if (!texto && !imagem) {
+      res.status(400).json({ error: "Escreva uma mensagem ou mande uma foto." });
       return;
     }
     const autor = await loadEquipeMember(kv, session.uid);
@@ -83,6 +86,7 @@ export default async function handler(req, res) {
       autorId: session.uid,
       autorNome: autor.nome,
       texto,
+      ...(imagem ? { imagem } : {}),
       criadoEm: new Date().toISOString(),
     };
     const lista = (await kv.get(chaveConversa(conversa))) || [];
@@ -96,8 +100,9 @@ export default async function handler(req, res) {
     try {
       await avisarNoAparelho(kv, quem.filter((id) => id !== session.uid), {
         title: conversa === "equipe" ? `${autor.nome} · Chat da equipe` : autor.nome,
-        body: texto.length > 120 ? `${texto.slice(0, 120)}…` : texto,
+        body: !texto ? "📷 Foto" : texto.length > 120 ? `${texto.slice(0, 120)}…` : texto,
         tag: `chat-${conversa}`,
+        prioridade: "alta",
         url: `/?chat=${encodeURIComponent(conversa)}`,
       });
     } catch (err) {

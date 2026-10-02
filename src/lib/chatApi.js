@@ -17,5 +17,5 @@ const post = (data) => request("/api/chat", {
 
 export const listarConversas = () => request("/api/chat", { headers: authHeaders() });
 export const listarMensagens = (conversa) => request(`/api/chat?conversa=${encodeURIComponent(conversa)}`, { headers: authHeaders() });
-export const enviarMensagem = (conversa, texto) => post({ conversa, texto });
+export const enviarMensagem = (conversa, texto, imagem) => post({ conversa, texto, ...(imagem ? { imagem } : {}) });
 export const marcarLida = (conversa) => post({ conversa, lida: true });

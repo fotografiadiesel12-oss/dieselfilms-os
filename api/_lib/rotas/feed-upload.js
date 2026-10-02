@@ -1,5 +1,5 @@
 import { handleUpload } from "@vercel/blob/client";
-import { requireSession } from "./_lib/session.js";
+import { requireSession } from "../session.js";
 
 export default async function handler(req, res) {
   if (!requireSession(req, res)) return;

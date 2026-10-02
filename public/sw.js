@@ -13,6 +13,8 @@ self.addEventListener("push", (event) => {
     badge: "/favicon.png",
     data: { url: dados.url || "/" },
     ...(dados.tag ? { tag: dados.tag, renotify: true } : {}),
+    // mensagem do chat: vibra e fica na tela até a pessoa ver
+    ...(dados.prioridade === "alta" ? { requireInteraction: true, vibrate: [200, 100, 200], silent: false } : {}),
   }));
 });
 

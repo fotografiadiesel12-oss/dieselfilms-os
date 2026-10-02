@@ -38,8 +38,10 @@ export async function avisarNoAparelho(kv, userIds, aviso) {
   const alvo = inscricoes.filter((i) => userIds.includes(i.userId));
   if (!alvo.length) return;
   const payload = JSON.stringify({ url: "/", ...aviso });
+  // prioridade alta (chat): o celular entrega na hora, mesmo economizando bateria
+  const opcoes = { TTL: 60 * 60 * 24, urgency: aviso.prioridade === "alta" ? "high" : "normal" };
   const vencidas = [];
-  await Promise.allSettled(alvo.map((i) => webpush.sendNotification(i.subscription, payload, { TTL: 60 * 60 * 24 })
+  await Promise.allSettled(alvo.map((i) => webpush.sendNotification(i.subscription, payload, opcoes)
     .catch((err) => {
       // 404/410: o aparelho desativou ou a inscrição expirou
       if (err && (err.statusCode === 404 || err.statusCode === 410)) vencidas.push(i.subscription.endpoint);

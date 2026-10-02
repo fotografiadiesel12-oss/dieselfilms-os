@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
-import { requireSession } from "./_lib/session.js";
-import { PUSH_KEY, pushConfigurado } from "./_lib/notificar.js";
+import { requireSession } from "../session.js";
+import { PUSH_KEY, pushConfigurado } from "../notificar.js";
 
 // Guarda em quais aparelhos cada pessoa ativou os avisos (notificação no
 // celular/PC mesmo com o CRM fechado).

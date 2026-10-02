@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { requireSession, loadEquipeMember } from "./_lib/session.js";
+import { requireSession, loadEquipeMember } from "../session.js";
 
 // Histórico de quem mudou o quê (auditoria). Qualquer pessoa logada registra
 // as próprias ações, mas só os donos (Dono e Sócio) conseguem ler a lista.
