@@ -1,7 +1,31 @@
 import { kv } from "@vercel/kv";
 import { requireSession, loadEquipeMember, CARGOS_GESTAO } from "../_lib/session.js";
+import { notificar } from "../_lib/notificar.js";
 
 const KEY = "feed_posts";
+
+const reacaoDe = (reacoes, uid) => Object.keys(reacoes || {}).find((k) => Array.isArray(reacoes[k]) && reacoes[k].includes(uid));
+
+// avisa o dono do post quando outra pessoa reage (só na primeira reação, não
+// a cada troca) ou comenta. O Dieselzinho não é da equipe, então não recebe.
+async function avisarDono(antes, depois, session) {
+  if (!antes.autorId || antes.autorId === session.uid) return;
+  const resumoPost = antes.texto || (antes.midias && antes.midias.length ? "sua foto/vídeo" : "");
+  const novosComentarios = (depois.comentarios || []).filter((c) => c && c.autorId === session.uid
+    && !(antes.comentarios || []).some((a) => a && a.id === c.id));
+  const reacaoNova = !reacaoDe(antes.reacoes, session.uid) && reacaoDe(depois.reacoes, session.uid);
+  if (!novosComentarios.length && !reacaoNova) return;
+
+  const quem = await loadEquipeMember(kv, session.uid);
+  const dono = await loadEquipeMember(kv, antes.autorId);
+  if (!quem || !dono) return;
+  for (const c of novosComentarios) {
+    // se o comentário já marca o dono com @, ele recebe o aviso de menção
+    if (typeof c.texto === "string" && c.texto.includes(`@${dono.nome}`)) continue;
+    await notificar(kv, [dono.id], { tipo: "comentario", autorNome: quem.nome, trecho: typeof c.texto === "string" ? c.texto : "" });
+  }
+  if (reacaoNova) await notificar(kv, [dono.id], { tipo: "reacao", autorNome: quem.nome, trecho: resumoPost, reacao: reacaoNova });
+}
 
 export default async function handler(req, res) {
   const session = requireSession(req, res);
@@ -26,6 +50,11 @@ export default async function handler(req, res) {
     const list = posts.slice();
     list[idx] = updated;
     await kv.set(KEY, list);
+    try {
+      await avisarDono(posts[idx], updated, session);
+    } catch (err) {
+      console.error("Falha ao avisar o dono do post:", err);
+    }
     res.status(200).json(updated);
     return;
   }

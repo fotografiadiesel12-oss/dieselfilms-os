@@ -1,7 +1,10 @@
 // Posta no Feed do CRM como o Dieselzinho (bot da DieselFilms).
 //
 // Uso:
-//   node scripts/postar-no-feed.mjs --texto "Fique por dentro..." [--html relatorio-crm.html]
+//   node scripts/postar-no-feed.mjs --texto "Fique por dentro..." [--html relatorio-crm.html] [--sem-todos]
+//
+// Todo post vai com @Todos, que avisa a equipe inteira (sininho e celular/PC).
+// Use --sem-todos pra postar sem avisar ninguém.
 //
 // Precisa da chave BOT_SECRET no arquivo .env (fora do GitHub) -- a mesma que
 // está configurada no painel da Vercel.
@@ -30,7 +33,7 @@ if (!texto && !htmlPath) {
   process.exit(1);
 }
 
-const body = { texto };
+const body = { texto, todos: !process.argv.includes("--sem-todos") };
 if (htmlPath) body.html = { nome: basename(htmlPath), conteudo: readFileSync(htmlPath, "utf8") };
 
 const res = await fetch(`${SITE}/api/bot-post`, {

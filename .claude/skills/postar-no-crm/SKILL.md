@@ -24,7 +24,9 @@ mesma chave precisa estar nas variáveis de ambiente da Vercel).
    node scripts/postar-no-feed.mjs --texto "<descrição>" --html <arquivo.html>
    ```
 
-   (`--html` é opcional; dá pra postar só texto.)
+   (`--html` é opcional; dá pra postar só texto.) Todo post do bot vai com
+   **@Todos** automaticamente: a equipe inteira recebe aviso no sininho e no
+   celular/PC (quem ativou os avisos). Use `--sem-todos` pra não avisar ninguém.
 5. Avise o usuário que foi publicado.
 
 ## Erros comuns

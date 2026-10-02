@@ -38,7 +38,16 @@ export default defineConfig({
           delete store[k]; return json(res, 200, { ok: true });
         }
         if (p === "feed") return json(res, 200, []);
-        if (p.startsWith("notifications")) return json(res, 200, []);
+        if (p.startsWith("notifications")) {
+          const t = new Date().toISOString();
+          return json(res, 200, req.method !== "GET" ? {} : [
+            { id: "n1", userId: "u1", tipo: "todos", autorNome: "Dieselzinho", trecho: "🎬 Novidade em Contratos!", lida: false, criadoEm: t },
+            { id: "n2", userId: "u1", tipo: "comentario", autorNome: "Luís Antônio", trecho: "Ficou top!", lida: false, criadoEm: t },
+            { id: "n3", userId: "u1", tipo: "reacao", reacao: "amei", autorNome: "Luís Antônio", trecho: "Fotos do ensaio", lida: false, criadoEm: t },
+            { id: "n4", userId: "u1", tipo: "mencao", autorNome: "Luís Antônio", trecho: "@Yuri Diesel olha isso", lida: true, criadoEm: t },
+          ]);
+        }
+        if (p === "push") return json(res, 503, { error: "Avisos no aparelho ainda não configurados." });
         return json(res, 200, req.method === "GET" ? [] : {});
       });
     },

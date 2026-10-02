@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { requireSession } from "../_lib/session.js";
+import { notificar } from "../_lib/notificar.js";
 
 const KEY = "notificacoes";
 const TIPOS = ["tarefa", "mencao"];
@@ -31,18 +32,11 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Tipo de notificação inválido." });
       return;
     }
-    const all = (await kv.get(KEY)) || [];
-    const notificacao = {
-      id: crypto.randomUUID(),
-      userId: body.userId,
+    const [notificacao] = await notificar(kv, [body.userId], {
       tipo: body.tipo,
       autorNome: str(body.autorNome, 200),
       trecho: str(body.trecho, 300),
-      lida: false,
-      criadoEm: new Date().toISOString(),
-    };
-    const updated = [notificacao, ...all].slice(0, 500);
-    await kv.set(KEY, updated);
+    });
     res.status(201).json(notificacao);
     return;
   }

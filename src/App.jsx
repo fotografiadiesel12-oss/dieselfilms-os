@@ -21,6 +21,7 @@ import { listPosts, createPost, updatePost, deletePost } from "./lib/feedApi.js"
 import { uploadImagem, uploadMidia } from "./lib/mediaApi.js";
 import { hashPassword } from "./lib/authClient.js";
 import { listNotifications, createNotification, markNotificationRead } from "./lib/notificationsApi.js";
+import { estadoAvisos, ativarAvisos, desativarAvisos } from "./lib/pushApi.js";
 import { listarAtividade, registrarAtividade } from "./lib/activityApi.js";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -1035,9 +1036,27 @@ function NotificationBell({ currentUser }) {
 
   const naoLidas = notifs.filter((n) => !n.lida).length;
 
+  // avisos no aparelho (celular/PC), mesmo com o CRM fechado
+  const [avisos, setAvisos] = useState(null);
+  const [ligando, setLigando] = useState(false);
+  const atualizarAvisos = () => estadoAvisos().then(setAvisos).catch(() => setAvisos("sem-suporte"));
+  const alternarAvisos = async () => {
+    setLigando(true);
+    try {
+      if (avisos === "ativo") { await desativarAvisos(); toastSuccess("Avisos desligados neste aparelho."); }
+      else { await ativarAvisos(); toastSuccess("Pronto! Os avisos vão chegar neste aparelho."); }
+    } catch (err) {
+      toastError(err.message || "Não deu pra ligar os avisos. Tente de novo.");
+    } finally {
+      setLigando(false);
+      atualizarAvisos();
+    }
+  };
+
   const abrir = () => {
     const proximoEstado = !open;
     setOpen(proximoEstado);
+    if (proximoEstado) atualizarAvisos();
     if (proximoEstado && naoLidas > 0) {
       notifs.filter((n) => !n.lida).forEach((n) => markNotificationRead(n.id).catch(() => {}));
       setNotifs(notifs.map((n) => ({ ...n, lida: true })));
@@ -1062,13 +1081,37 @@ function NotificationBell({ currentUser }) {
           <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: C.textFaint, borderBottom: `1px solid ${C.borderSoft}` }}>
             Notificações
           </div>
+          {avisos && (
+            <div className="px-4 py-3 text-xs" style={{ borderBottom: `1px solid ${C.borderSoft}`, background: "rgba(201,162,39,0.06)", fontFamily: "Inter" }}>
+              {(avisos === "ativo" || avisos === "desligado") && (
+                <div className="flex items-center justify-between gap-3">
+                  <span style={{ color: C.textDim }}>
+                    {avisos === "ativo" ? "Avisos ligados neste aparelho." : "Receba os avisos no celular/PC, mesmo com o CRM fechado."}
+                  </span>
+                  <button onClick={alternarAvisos} disabled={ligando} className="shrink-0 px-3 py-1.5 rounded-lg font-semibold"
+                    style={avisos === "ativo"
+                      ? { color: C.textDim, border: `1px solid ${C.border}` }
+                      : { color: "#1A1408", background: C.goldBright }}>
+                    {ligando ? "..." : avisos === "ativo" ? "Desligar" : "Ativar"}
+                  </button>
+                </div>
+              )}
+              {avisos === "bloqueado" && <span style={{ color: C.textDim }}>As notificações estão bloqueadas neste navegador. Libere nas configurações do site (cadeado ao lado do endereço) pra receber os avisos.</span>}
+              {avisos === "iphone-tela-inicio" && <span style={{ color: C.textDim }}>No iPhone: toque em Compartilhar → "Adicionar à Tela de Início", abra o CRM pelo ícone e ative os avisos aqui.</span>}
+              {avisos === "sem-suporte" && <span style={{ color: C.textFaint }}>Este navegador não recebe avisos fora do CRM.</span>}
+            </div>
+          )}
           {notifs.length === 0 && <div className="px-4 py-4 text-xs" style={{ color: C.textFaint }}>Nenhuma notificação ainda.</div>}
           {notifs.map((n) => (
             <div key={n.id} className="px-4 py-3 text-xs" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
               <div style={{ color: C.text, fontFamily: "Inter" }}>
                 {n.tipo === "tarefa"
                   ? <>Nova tarefa pra você: <span style={{ color: C.goldBright, fontWeight: 600 }}>{n.trecho}</span></>
-                  : <><span style={{ color: C.goldBright, fontWeight: 600 }}>{n.autorNome}</span> te marcou: "{n.trecho}"</>}
+                  : <><span style={{ color: C.goldBright, fontWeight: 600 }}>{n.autorNome}</span>{" "}
+                    {n.tipo === "comentario" ? "comentou no seu post"
+                      : n.tipo === "reacao" ? <>reagiu {REACOES.find((r) => r.id === n.reacao)?.emoji || ""} ao seu post</>
+                      : n.tipo === "todos" ? "postou pra todos"
+                      : "te marcou"}{n.trecho ? `: "${n.trecho}"` : ""}</>}
               </div>
               <div style={{ color: C.textFaint, marginTop: 3 }}>
                 {new Date(n.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}

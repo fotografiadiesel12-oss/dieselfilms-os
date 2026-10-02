@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { kv } from "@vercel/kv";
 import { put } from "@vercel/blob";
+import { notificar, carregarEquipe } from "./_lib/notificar.js";
 
 // Dieselzinho -- o bot que posta as novidades do sistema no Feed.
 // Não é uma pessoa da equipe e não tem login: só posta quem tiver a chave
@@ -34,7 +35,11 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const texto = typeof body.texto === "string" ? body.texto.slice(0, 5000).trim() : "";
+  // toda novidade do bot vai com @Todos (avisa a equipe inteira), a não ser
+  // que o script mande todos: false
+  const paraTodos = body.todos !== false;
+  let texto = typeof body.texto === "string" ? body.texto.slice(0, 5000).trim() : "";
+  if (paraTodos && !texto.includes("@Todos")) texto = texto ? `@Todos ${texto}` : "@Todos";
   const html = body.html && typeof body.html.conteudo === "string" ? body.html : null;
   if (!texto && !html) {
     res.status(400).json({ error: "Mande um texto ou um arquivo .html." });
@@ -73,5 +78,13 @@ export default async function handler(req, res) {
   };
   const posts = (await kv.get(KEY)) || [];
   await kv.set(KEY, [post, ...posts]);
+  if (paraTodos) {
+    try {
+      const equipe = await carregarEquipe(kv);
+      await notificar(kv, equipe.map((u) => u.id), { tipo: "todos", autorNome: BOT.nome, trecho: texto.replace("@Todos", "").trim() || "Nova atualização no Feed" });
+    } catch (err) {
+      console.error("Falha ao avisar a equipe:", err);
+    }
+  }
   res.status(201).json(post);
 }
