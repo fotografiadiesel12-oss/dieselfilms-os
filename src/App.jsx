@@ -6,7 +6,7 @@ import {
   MessageSquare, ArrowRight, CheckCircle2, Receipt, Copy, ExternalLink,
   Pencil, Heart, MessageCircle, Send, Bookmark, Play, Settings, Rss, Bell,
   Search, UserCheck, Activity, Repeat, FileX, LayoutGrid, List, ArrowUpDown,
-  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake, Smile, ImagePlus
+  Download, Eye, EyeOff, Lock, KeyRound, UserPlus, Loader2, Wand2, Upload, Instagram, Globe, LogOut, Cake, Smile, ImagePlus, Link2
 } from "lucide-react";
 import ReelsCard from "./components/ReelsCard.jsx";
 import DirectVideoCard from "./components/DirectVideoCard.jsx";
@@ -3720,7 +3720,21 @@ function ExpandableText({ text, style, limit = 320, maxLines = 5, equipe = [] })
   );
 }
 
-function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDelete }) {
+// link que abre o CRM direto nessa publicação (quem não estiver logado faz login antes)
+function compartilharPost(post) {
+  const url = `${window.location.origin}/?post=${post.id}`;
+  const copiar = () => navigator.clipboard.writeText(url)
+    .then(() => toastSuccess("Link copiado! É só colar onde quiser."))
+    .catch(() => window.prompt("Copie o link:", url));
+  // no celular abre o menu de compartilhar (WhatsApp etc.); no PC só copia
+  if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+    navigator.share({ title: `Publicação de ${post.autorNome} no DieselFilms OS`, url }).catch((e) => { if (e?.name !== "AbortError") copiar(); });
+  } else {
+    copiar();
+  }
+}
+
+function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDelete, destacado }) {
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -3744,7 +3758,8 @@ function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDele
   const reagir = (id) => { setPickerOpen(false); onReagir(post, id); };
 
   return (
-    <article className="rounded-2xl mb-5 df-fade-up" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+    <article id={`post-${post.id}`} className="rounded-2xl mb-5 df-fade-up"
+      style={{ background: C.surface, border: `1px solid ${destacado ? C.gold : C.border}`, boxShadow: destacado ? `0 0 0 3px rgba(201,162,39,0.25), 0 8px 24px rgba(0,0,0,0.25)` : "0 8px 24px rgba(0,0,0,0.25)", transition: "border-color .6s, box-shadow .6s", scrollMarginTop: 80 }}>
       <header className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
         <div className="flex items-center gap-3 min-w-0">
           <FeedAvatar user={autor} nome={post.autorNome} size={44} />
@@ -3756,22 +3771,26 @@ function PostCard({ post, equipe, currentUser, onReagir, onAddComentario, onDele
             </div>
           </div>
         </div>
-        {podeExcluir && (
-          <div className="relative">
-            <button onClick={() => setMenuOpen((v) => !v)} title="Opções" className="df-btn-ghost p-2 rounded-full" style={{ color: C.textDim, border: "1px solid transparent" }}>
-              <span className="text-lg leading-none tracking-widest">···</span>
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 z-20 rounded-xl py-1 df-scale-in" onMouseLeave={() => setMenuOpen(false)}
-                style={{ top: "100%", minWidth: 190, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)" }}>
+        <div className="relative">
+          <button onClick={() => setMenuOpen((v) => !v)} title="Opções" className="df-btn-ghost p-2 rounded-full" style={{ color: C.textDim, border: "1px solid transparent" }}>
+            <span className="text-lg leading-none tracking-widest">···</span>
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 z-20 rounded-xl py-1 df-scale-in" onMouseLeave={() => setMenuOpen(false)}
+              style={{ top: "100%", minWidth: 210, background: "#1E1D19", border: `1px solid ${C.border}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)" }}>
+              <button onClick={() => { setMenuOpen(false); compartilharPost(post); }}
+                className="df-btn-ghost flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-left" style={{ color: C.text, fontFamily: "Inter", border: "1px solid transparent" }}>
+                <Link2 size={15} />Compartilhar link
+              </button>
+              {podeExcluir && (
                 <button onClick={() => { setMenuOpen(false); if (window.confirm("Excluir essa publicação?")) onDelete(post.id); }}
                   className="df-btn-ghost flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-left" style={{ color: C.red, fontFamily: "Inter", border: "1px solid transparent" }}>
                   <Trash2 size={15} />Excluir publicação
                 </button>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       {post.tipo === "frase" ? (
@@ -4110,6 +4129,22 @@ function FeedModule({ equipe, currentUser }) {
     return () => clearInterval(interval);
   }, []);
 
+  // veio de um link compartilhado (?post=ID): rola até a publicação e destaca
+  const [postAlvo, setPostAlvo] = useState(() => new URL(window.location.href).searchParams.get("post"));
+  const [destacado, setDestacado] = useState(null);
+  useEffect(() => {
+    if (!postAlvo || loading) return;
+    window.history.replaceState(null, "", "/");
+    setPostAlvo(null);
+    if (!posts.some((p) => p.id === postAlvo)) {
+      if (!error) toastError("Essa publicação não existe mais.");
+      return;
+    }
+    setDestacado(postAlvo);
+    setTimeout(() => document.getElementById(`post-${postAlvo}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    setTimeout(() => setDestacado(null), 4000);
+  }, [postAlvo, loading]);
+
   const notificarMencoes = (texto) => {
     extrairMencoes(texto, equipe).filter((u) => u.id !== currentUser.id).forEach((u) => {
       createNotification({
@@ -4208,7 +4243,7 @@ function FeedModule({ equipe, currentUser }) {
           )}
           {posts.map((post) => (
             <PostCard key={post.id} post={post} equipe={equipe} currentUser={currentUser}
-              onReagir={reagir} onAddComentario={addComentario} onDelete={remove} />
+              onReagir={reagir} onAddComentario={addComentario} onDelete={remove} destacado={destacado === post.id} />
           ))}
         </div>
 
